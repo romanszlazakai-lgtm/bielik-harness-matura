@@ -1,0 +1,98 @@
+# Seed articles from Polish Wikipedia. The builder downloads these, then the articles they link
+# to most often. One exact title per line; redirects are followed. Lines starting with # are ignored.
+
+# Historia Polski
+Historia Polski
+Historia Polski (do 966)
+Historia Polski (966–1138)
+Historia Polski (1138–1320)
+Historia Polski (1320–1386)
+Historia Polski (1386–1572)
+Historia Polski (1572–1697)
+Historia Polski (1697–1763)
+Historia Polski (1764–1795)
+Historia Polski (1795–1918)
+Historia Polski (1918–1939)
+Historia Polski (1939–1945)
+Historia Polski (1945–1989)
+Historia Polski (od 1989)
+Władcy Polski
+Piastowie
+Jagiellonowie
+Wazowie
+Wettynowie
+Rozbicie dzielnicowe w Polsce
+Rzeczpospolita Obojga Narodów
+Demokracja szlachecka
+Rozbiory Polski
+Konstytucja 3 Maja
+Księstwo Warszawskie
+Królestwo Polskie (kongresowe)
+Powstanie listopadowe
+Powstanie styczniowe
+Wielka Emigracja
+Legiony Polskie (1914–1918)
+Wojna polsko-bolszewicka
+II Rzeczpospolita
+Polskie Państwo Podziemne
+Powstanie warszawskie
+Polska Rzeczpospolita Ludowa
+NSZZ „Solidarność”
+Okrągły Stół w Polsce
+Zakon krzyżacki
+Wojna polsko-krzyżacka (1409–1411)
+Potop szwedzki
+Odsiecz wiedeńska
+
+# Historia powszechna
+Starożytna Grecja
+Ateny (starożytność)
+Sparta
+Starożytny Rzym
+Republika rzymska
+Cesarstwo rzymskie
+Wojny punickie
+Starożytny Egipt
+Mezopotamia
+Cesarstwo Bizantyńskie
+Średniowiecze
+Feudalizm
+Wyprawy krzyżowe
+Spór o inwestyturę
+Wielkie odkrycia geograficzne
+Renesans
+Reformacja
+Kontrreformacja
+Wojna trzydziestoletnia
+Absolutyzm
+Oświecenie
+Rewolucja amerykańska
+Rewolucja francuska
+Epoka napoleońska
+Kongres wiedeński
+Wiosna Ludów
+Rewolucja przemysłowa
+I wojna światowa
+Rewolucja październikowa
+Traktat wersalski
+Wielki kryzys
+II wojna światowa
+Zimna wojna
+Integracja europejska
+
+# Sztuka i kultura
+Architektura romańska
+Architektura gotycka
+Architektura renesansu
+Barok
+Klasycyzm
+Romantyzm
+Realizm (sztuka)
+Impresjonizm
+Secesja
+Młoda Polska
+Socrealizm
+Jan Matejko
+Malarstwo historyczne
+Sztuka starożytnej Grecji
+Sztuka bizantyńska

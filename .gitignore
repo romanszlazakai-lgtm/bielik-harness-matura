@@ -1,0 +1,9 @@
+# Built locally by scripts/build_kb.py (Wikipedia text is CC BY-SA; the script is the source of truth)
+data/kb/
+# Run logs and dev results
+outputs/
+__pycache__/
+*.pyc
+# Model weights never go into the repo
+*.gguf
+*.safetensors
