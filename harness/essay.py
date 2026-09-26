@@ -67,7 +67,8 @@ def trim_unfinished(text):
     return text[: ends[-1].end()] if ends else text
 
 
-_HEADING = re.compile(r"^\s*(#+\s*|Temat\s*:|Wnioski\s*:|Wniosek\s*:)", re.I)
+_HEADING = re.compile(r"^\s*(#+\s|Temat\s*:|Wypracowanie\s*:)", re.I)   # whole line dropped
+_INLINE_LABEL = re.compile(r"^\s*(Wnioski|Wniosek|Analiza|Fakt(?: historyczny)?|Teza|Stanowisko)\s*:\s*", re.I)
 _BULLET = re.compile(r"^\s*(?:[-*•–]|\d+[.)])\s+")
 
 
@@ -86,12 +87,17 @@ def _prose(block):
         line = _BULLET.sub("", line)
         if line.endswith(":"):  # "- Czynniki polityczne:" introduces a list, it is not a sentence
             continue
+        # "Wniosek: ...", "Fakt historyczny: Deklaracja (1776)": the label goes, the content stays.
+        labelled = bool(_INLINE_LABEL.match(line))
+        line = _INLINE_LABEL.sub("", line)
         # "Konflikt z Wielką Brytanią: Koloniści..." keeps the sentence, loses the short label.
         m = re.match(r"^([^.:!?]{2,60}):\s+(.+)$", line)
         if m and len(m.group(1).split()) <= 6:
-            line = m.group(2)
-        # A line with no sentence end and few words is a heading ("Reforma gospodarcza").
-        if not re.search(r"[.!?…]$", line) and len(line.split()) <= 8 and not is_bullet:
+            line, labelled = m.group(2), True
+        # A short line with no sentence end and no label is a heading ("Reforma gospodarcza").
+        if not re.search(r"[.!?…]$", line) and len(line.split()) <= 8 and not (is_bullet or labelled):
+            continue
+        if not line:
             continue
         if not re.search(r"[.!?…]$", line):
             line += "."
@@ -127,6 +133,15 @@ def _next_argument(text):
     return max(numbers, default=3) + 1
 
 
+_CONCLUSION = re.compile(r"(?:^|\n)\s*[*#\s]*(Podsumowanie|Zakończenie)\b", re.I)
+
+
+def split_conclusion(draft):
+    """(body, conclusion); the conclusion starts at its label, or is empty when there is none."""
+    m = _CONCLUSION.search(draft)
+    return (draft[:m.start()].rstrip(), draft[m.start():].strip()) if m else (draft, "")
+
+
 def solve_essay(q):
     start = time.time()
     topics = q.topics or [q.text]
@@ -134,25 +149,35 @@ def solve_essay(q):
     messages = prompts.essay_messages(topic, essay_passages(topic))
 
     def ask(msgs):
-        return llm.chat(msgs, temperature=0.3, max_tokens=config.ESSAY_MAX_TOKENS, timeout=config.ESSAY_TIMEOUT)
+        # Essays may go to their own model and server (ESSAY_LLM_MODEL / ESSAY_LLM_BASE_URL).
+        return llm.chat(msgs, temperature=0.3, max_tokens=config.ESSAY_MAX_TOKENS, timeout=config.ESSAY_TIMEOUT,
+                        base_url=config.ESSAY_LLM_BASE_URL or None, model=config.ESSAY_LLM_MODEL or None)
 
     raws = [ask(messages)]
     draft = trim_unfinished(raws[0].strip())
     for _ in range(config.ESSAY_MAX_EXTENSIONS):
         words = word_count(finalize(draft))  # repeated sentences are dropped later, so they do not count
-        has_conclusion = re.search(r"\b(Podsumowanie|Zakończenie)\b", draft, re.I)
-        if words >= config.ESSAY_MIN_WORDS and has_conclusion:
+        body, conclusion = split_conclusion(draft)
+        if words >= config.ESSAY_MIN_WORDS and conclusion:
             break
+        need = max(config.ESSAY_MIN_WORDS - words + 40, 80)
+        fmt = dict(words=words, min_words=config.ESSAY_MIN_WORDS, need=need, next_arg=_next_argument(draft))
         if words >= config.ESSAY_MIN_WORDS:
             request = prompts.ESSAY_CONCLUDE
+        elif conclusion:
+            request = prompts.ESSAY_EXTEND_ARGUMENT.format(**fmt)
         else:
-            request = prompts.ESSAY_EXTEND.format(words=words, min_words=config.ESSAY_MIN_WORDS,
-                                                  next_arg=_next_argument(draft))
+            request = prompts.ESSAY_EXTEND.format(**fmt)
         more = ask(messages + [{"role": "assistant", "content": draft}, {"role": "user", "content": request}])
         raws.append(more)
         if not more.strip():
             break
-        draft = draft + "\n\n" + trim_unfinished(more.strip())
+        addition = trim_unfinished(more.strip())
+        if conclusion and words < config.ESSAY_MIN_WORDS:
+            # A new argument goes before the existing conclusion, never after it.
+            draft = f"{body}\n\n{split_conclusion(addition)[0]}\n\n{conclusion}"
+        else:
+            draft = f"{draft}\n\n{addition}"
 
     final = finalize(draft, topic if len(topics) > 1 else None)
     return {

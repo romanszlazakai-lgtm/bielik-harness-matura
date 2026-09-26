@@ -131,6 +131,31 @@ out = normalize.normalize(decision, "Uzasadnienie: Prusy Książęce zostały le
 check("decision reordered", out.startswith("Rozstrzygnięcie: Nie\nUzasadnienie: Prusy Książęce"), out)
 check("decision facts first in prompt", prompts.DECISION_FORMAT.index("Uzasadnienie") < prompts.DECISION_FORMAT.index("Rozstrzygnięcie"))
 
-total = len(DETECT) + 1 + 2 + 3 + 9 + 6
+# ---- labels keep their content; extensions go before the conclusion (second live test) ----
+labelled = essay.finalize("**Fakt historyczny:** **Deklaracja niepodległości Stanów Zjednoczonych (1776)**\n"
+                          "**Wniosek:** Rewolucja amerykańska miała podobne przyczyny jak francuska.")
+check("label content kept", "Deklaracja niepodległości Stanów Zjednoczonych (1776)." in labelled
+      and "Rewolucja amerykańska miała podobne przyczyny" in labelled and "Wniosek" not in labelled, labelled)
+
+SHORT_DRAFT = ("Wstęp: Sejm Wielki próbował ratować państwo.\n\nArgument 1: Konstytucja 3 maja zniosła liberum veto.\n\n"
+               "Podsumowanie: Reformy przyszły za późno, by ocalić Rzeczpospolitą.")
+calls.clear()
+
+
+def stub_before_conclusion(messages, **kwargs):
+    calls.append(messages)
+    if len(calls) == 1:
+        return SHORT_DRAFT
+    return "Argument 2: " + " ".join(f"{fact}." for fact in FACTS) + "\n\nPodsumowanie: Drugie podsumowanie."
+
+
+llm.chat = stub_before_conclusion
+res = essay.solve_essay(qtypes.parse("Napisz wypracowanie: Oceń reformy Sejmu Wielkiego."))
+text = res["answer"]
+check("argument before conclusion", text.rstrip().endswith("by ocalić Rzeczpospolitą."), text[-120:])
+check("no second conclusion", "Drugie podsumowanie" not in text)
+check("asked for argument only", "Nie pisz podsumowania" in calls[1][-1]["content"])
+
+total = len(DETECT) + 1 + 2 + 3 + 9 + 6 + 4
 print(f"{total - failures}/{total} checks passed")
 sys.exit(1 if failures else 0)

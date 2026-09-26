@@ -22,7 +22,11 @@ MAX_TOKENS = int(_env("MAX_TOKENS", "160"))
 OPEN_MAX_TOKENS = int(_env("OPEN_MAX_TOKENS", "260"))    # open answers: answer + justification
 ESSAY_MAX_TOKENS = int(_env("ESSAY_MAX_TOKENS", "1000"))  # one essay draft
 ESSAY_MIN_WORDS = int(_env("ESSAY_MIN_WORDS", "300"))     # organisers' minimum; shorter drafts get extended
-ESSAY_MAX_EXTENSIONS = int(_env("ESSAY_MAX_EXTENSIONS", "2"))
+ESSAY_MAX_EXTENSIONS = int(_env("ESSAY_MAX_EXTENSIONS", "3"))
+# Optional separate model for essays (e.g. a larger one on a GPU server). Empty = same as LLM_*.
+# Note the rules: with several models, the progress baseline is the best of them used alone.
+ESSAY_LLM_MODEL = _env("ESSAY_LLM_MODEL", "")
+ESSAY_LLM_BASE_URL = _env("ESSAY_LLM_BASE_URL", "")
 ESSAY_TIMEOUT = float(_env("ESSAY_TIMEOUT", "900"))       # a 1000-token draft takes minutes on a laptop CPU
 USE_RAG = _env("USE_RAG", "1") == "1"
 TOP_K = int(_env("TOP_K", "3"))                      # knowledge-base passages per question

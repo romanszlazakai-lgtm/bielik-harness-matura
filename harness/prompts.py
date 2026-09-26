@@ -50,8 +50,14 @@ ESSAY_INSTRUCTION = (
     "Opieraj się na faktach z podanych fragmentów, zwłaszcza z osi czasu, i nie wymyślaj dat. "
     "Pisz ciągłą prozą: bez wypunktowań, nagłówków, pogrubień i gwiazdek. Nie powtarzaj zdań."
 )
+ESSAY_EXTEND_ARGUMENT = (
+    "Wypracowanie ma {words} słów, a wymagane jest co najmniej {min_words}. Dopisz co najmniej {need} słów: "
+    "Argument {next_arg}: nowy fakt historyczny (data, postać, wydarzenie), jego analizę i wniosek wspierający tezę. "
+    "Nie pisz podsumowania, ono już jest. Pisz ciągłą prozą, bez wypunktowań. Nie powtarzaj wcześniejszych zdań. "
+    "Zacznij od etykiety 'Argument {next_arg}:'."
+)
 ESSAY_EXTEND = (
-    "Wypracowanie ma {words} słów, a wymagane jest co najmniej {min_words}. Dopisz dalszą część: "
+    "Wypracowanie ma {words} słów, a wymagane jest co najmniej {min_words}. Dopisz co najmniej {need} słów: "
     "Argument {next_arg}: nowy fakt historyczny (data, postać, wydarzenie), jego analizę i wniosek, "
     "a potem Podsumowanie: potwierdzenie tezy. Pisz ciągłą prozą, bez wypunktowań. Nie powtarzaj wcześniejszych zdań. "
     "Zacznij od etykiety 'Argument {next_arg}:'."
