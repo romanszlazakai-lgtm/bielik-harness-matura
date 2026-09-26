@@ -9,7 +9,7 @@ from . import config
 _THINK = re.compile(r"<think>.*?</think>", re.S)
 
 
-def chat(messages, temperature=0.0, max_tokens=None, base_url=None, model=None):
+def chat(messages, temperature=0.0, max_tokens=None, base_url=None, model=None, timeout=None):
     """Send one chat request and return the assistant text ("" on failure)."""
     body = {
         "model": model or config.LLM_MODEL,
@@ -25,7 +25,7 @@ def chat(messages, temperature=0.0, max_tokens=None, base_url=None, model=None):
         headers={"Content-Type": "application/json", "Authorization": "Bearer local"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=config.LLM_TIMEOUT) as resp:
+        with urllib.request.urlopen(req, timeout=timeout or config.LLM_TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
         print(f"[llm] request failed: {exc}")

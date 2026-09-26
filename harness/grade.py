@@ -15,7 +15,10 @@ def _words(s):
 
 
 def is_correct(item, given):
-    qtype, key = item["type"], item["answer"]
+    """True/False for auto-gradable types; None for open answers and essays (need a human or a judge)."""
+    qtype, key = item["type"], item.get("answer", "")
+    if qtype in ("open", "essay"):
+        return None
     if not given:
         return False
     if qtype == "single":

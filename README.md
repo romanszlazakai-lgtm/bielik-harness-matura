@@ -102,6 +102,24 @@ PROMPT_VERSION=v3 USE_CKE=1 python scripts/run_dev.py --mode harness --data data
 - **`--holdout`** keeps one exam out of the index and writes its closed tasks to
   `data/cke/heldout.jsonl` in the dev-set format, for an honest check on real CKE questions.
 
+## Open answers and essays
+
+- **Detection.** A question is an `essay` when it asks for a *wypracowanie*, *rozprawka* or a
+  minimum word count, or offers topics to choose from (checked before single choice, because
+  topics are often labelled A/B/C). It is `open` when it asks for reasons (*wyjaśnij, uzasadnij,
+  rozstrzygnij, porównaj, oceń, przedstaw...*), and `short` only with an explicit "jak najkrócej".
+- **Open answers** (up to 260 tokens) start with the answer, then a concrete fact. Tasks that say
+  *Rozstrzygnij* answer in the marking scheme's own shape: `Rozstrzygnięcie:` then `Uzasadnienie:`.
+- **Essays** (`harness/essay.py`): with several topics, the one the knowledge base covers best is
+  chosen and named on the first line. Five passages of context, then one draft of up to 1000
+  tokens in a fixed structure: Wstęp (thesis and time frame), Argument 1-3 (fact, analysis,
+  conclusion), Podsumowanie. Code then counts the words (repeated sentences excluded). Under 300
+  words, or without a conclusion, the model is asked to add a further argument and a conclusion,
+  at most twice. Section labels, repeated sentences and a half-sentence cut off by the token limit
+  are removed from the final text.
+- **Grading.** These answers are not auto-graded: the dev runner saves them for human review.
+  `scripts/test_essay.py` checks detection, prompts and the extension loop with a stub model.
+
 ## Reproduce
 
 ```bash

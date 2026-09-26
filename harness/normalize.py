@@ -356,12 +356,14 @@ def short(q, raw):
 
 
 def open_answer(q, raw):
-    return (answer_tail(raw) or raw).strip()
+    """Keep the whole reply: an open answer is graded on its justification, not just the last line."""
+    text = re.sub(r"^\s*Odpowied[zź]\s*:\s*", "", raw.strip(), flags=re.I)
+    return "\n".join(l.strip() for l in text.splitlines() if l.strip())
 
 
 NORMALIZERS = {
     "single": single, "multi": multi, "tflist": tflist, "matching": matching,
-    "order": order, "numeric": numeric, "short": short, "open": open_answer,
+    "order": order, "numeric": numeric, "short": short, "open": open_answer, "essay": open_answer,
 }
 
 

@@ -58,6 +58,9 @@ def solve(text, declared_type=None, has_image=False, votes=None):
     """Answer one exam question. Returns a dict with the final answer and a trace."""
     start = time.time()
     q = qtypes.parse(text, declared_type=declared_type, has_image=has_image)
+    if q.qtype == "essay":
+        from .essay import solve_essay
+        return solve_essay(q)
     passages = retrieval.retrieve(q)
     messages = prompts.build_messages(q, passages)
 

@@ -19,6 +19,11 @@ VOTES = int(_env("VOTES", "1"))                      # answers per question; 3 =
 VOTE_TEMPERATURE = float(_env("VOTE_TEMPERATURE", "0.7"))
 REASONING = _env("REASONING", "1") == "1"            # short fact recall before the answer
 MAX_TOKENS = int(_env("MAX_TOKENS", "160"))
+OPEN_MAX_TOKENS = int(_env("OPEN_MAX_TOKENS", "260"))    # open answers: answer + justification
+ESSAY_MAX_TOKENS = int(_env("ESSAY_MAX_TOKENS", "1000"))  # one essay draft
+ESSAY_MIN_WORDS = int(_env("ESSAY_MIN_WORDS", "300"))     # organisers' minimum; shorter drafts get extended
+ESSAY_MAX_EXTENSIONS = int(_env("ESSAY_MAX_EXTENSIONS", "2"))
+ESSAY_TIMEOUT = float(_env("ESSAY_TIMEOUT", "900"))       # a 1000-token draft takes minutes on a laptop CPU
 USE_RAG = _env("USE_RAG", "1") == "1"
 TOP_K = int(_env("TOP_K", "3"))                      # knowledge-base passages per question
 PASSAGE_CHARS = int(_env("PASSAGE_CHARS", "600"))    # passage length cap inside the prompt

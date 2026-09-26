@@ -21,8 +21,48 @@ FORMAT = {
     "order": "Dla każdej litery podaj rok lub wiek (np. A: 1410 r.). W ostatniej linii napisz: Odpowiedź: <litery od najwcześniejszego, oddzielone przecinkami>",
     "numeric": "Zapisz obliczenie w linii WYRAŻENIE: <działanie, np. 1525-1410>. W ostatniej linii napisz: Odpowiedź: <sama liczba>",
     "short": "Odpowiedz jak najkrócej, jednym do trzech słów. W ostatniej linii napisz: Odpowiedź: <odpowiedź>",
-    "open": "Odpowiedz rzeczowo w 2-4 zdaniach, podając fakty, daty i nazwy.",
+    "open": "Odpowiedz w 2-4 zdaniach. Zacznij od bezpośredniej odpowiedzi na polecenie, potem uzasadnij ją konkretnym faktem (data, postać, nazwa) i odwołaniem do źródła, jeśli jest. Nie powtarzaj treści polecenia.",
 }
+
+# "Rozstrzygnij, czy..." tasks: the CKE marking scheme expects a verdict plus a justification.
+DECISION_FORMAT = ("Odpowiedz dokładnie w dwóch liniach.\nRozstrzygnięcie: <krótka odpowiedź, np. Tak albo Nie, albo nazwa>\n"
+                   "Uzasadnienie: <1-2 zdania z konkretnym faktem historycznym (data, postać, nazwa) i odwołaniem do źródła, jeśli jest>")
+DECISION_EXAMPLE = (
+    "Rozstrzygnij, czy unia w Krewie była unią realną. Odpowiedź uzasadnij.",
+    "Rozstrzygnięcie: Nie\nUzasadnienie: Unia w Krewie z 1385 r. była unią personalną, łączącą Polskę i Litwę osobą władcy, Władysława Jagiełły; unię realną ustanowiła dopiero unia lubelska w 1569 r.",
+)
+
+ESSAY_SYSTEM = ("Jesteś maturzystą, który pisze wypracowanie z historii na poziomie rozszerzonym. Piszesz poprawną "
+                "polszczyzną, rzeczowo i z konkretną faktografią: daty, postacie, wydarzenia, pojęcia.")
+ESSAY_INSTRUCTION = (
+    "Napisz wypracowanie na ten temat, co najmniej {min_words} słów, według schematu. Każdą część zacznij od "
+    "etykiety w osobnej linii i napisz jako pełny akapit (3-5 zdań):\n"
+    "Wstęp: teza, czyli jednoznaczne stanowisko wobec tematu, oraz ramy czasowe i przestrzenne.\n"
+    "Argument 1: fakt historyczny (data, postać, wydarzenie), jego analiza i wniosek wspierający tezę.\n"
+    "Argument 2: kolejny fakt z innej dziedziny (polityka, gospodarka i społeczeństwo, kultura), analiza i wniosek.\n"
+    "Argument 3: kolejny fakt, analiza i wniosek.\n"
+    "Podsumowanie: potwierdzenie tezy i ogólny wniosek.\n"
+    "Jeśli temat wymienia aspekty (np. polityczne, społeczno-gospodarcze, kulturowe), poświęć każdemu jeden argument. "
+    "Nie powtarzaj zdań."
+)
+ESSAY_EXTEND = (
+    "Wypracowanie ma {words} słów, a wymagane jest co najmniej {min_words}. Dopisz dalszą część: "
+    "Argument {next_arg}: nowy fakt historyczny (data, postać, wydarzenie), jego analizę i wniosek, "
+    "a potem Podsumowanie: potwierdzenie tezy. Nie powtarzaj wcześniejszych zdań. Zacznij od etykiety 'Argument {next_arg}:'."
+)
+ESSAY_CONCLUDE = "Dopisz tylko Podsumowanie: 3-4 zdania potwierdzające tezę i ogólny wniosek. Zacznij od etykiety 'Podsumowanie:'."
+
+
+def is_decision(q):
+    return q.qtype == "open" and "rozstrzygnij" in q.text.lower()
+
+
+def essay_messages(topic, passages):
+    return [
+        {"role": "system", "content": ESSAY_SYSTEM},
+        {"role": "user", "content": f"{_context_block(passages)}Temat: {topic}\n\n"
+                                    f"{ESSAY_INSTRUCTION.format(min_words=config.ESSAY_MIN_WORDS)}"},
+    ]
 
 # v3: one line per item with the key fact first and the verdict last, so the model judges items
 # one by one and the parser can read each verdict separately.
@@ -116,6 +156,10 @@ def uses_item_lines(q):
 
 
 def max_tokens(q):
+    if q.qtype == "essay":
+        return config.ESSAY_MAX_TOKENS
+    if q.qtype == "open":
+        return config.OPEN_MAX_TOKENS
     return max(config.MAX_TOKENS, V3_MAX_TOKENS) if uses_item_lines(q) else config.MAX_TOKENS
 
 
@@ -147,6 +191,9 @@ def build_messages(q, passages):
     instruction = f"{style} {FORMAT[q.qtype]}".strip()
     ex_q, ex_a = EXAMPLES[q.qtype]
     hints = ""
+    if is_decision(q):
+        instruction = DECISION_FORMAT
+        ex_q, ex_a = DECISION_EXAMPLE
     if uses_item_lines(q):
         instruction = FORMAT_V3[q.qtype]
         ex_q, ex_a = EXAMPLES_V3[q.qtype]
