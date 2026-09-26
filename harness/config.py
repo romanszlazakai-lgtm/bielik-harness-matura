@@ -24,6 +24,12 @@ TOP_K = int(_env("TOP_K", "3"))                      # knowledge-base passages p
 PASSAGE_CHARS = int(_env("PASSAGE_CHARS", "600"))    # passage length cap inside the prompt
 DECIMAL_SEPARATOR = _env("DECIMAL_SEPARATOR", ",")   # numeric answers: "4,5" or "4.5"
 
+PROMPT_VERSION = _env("PROMPT_VERSION", "v2")          # v3 adds worked examples from CKE papers
+USE_CKE = _env("USE_CKE", "0") == "1"                  # one passage slot for CKE papers and keys
+CKE_MIN_COVERAGE = float(_env("CKE_MIN_COVERAGE", "0.5"))      # share of question words found in a CKE passage
+CKE_MIN_INSTRUCTION = float(_env("CKE_MIN_INSTRUCTION", "0.6"))  # share of the CKE instruction found in the question
+
 KB_DIR = Path(_env("KB_DIR", str(ROOT / "data" / "kb")))
+CKE_DIR = ROOT / "data" / "cke"
 KB_EXTRA_DIR = ROOT / "data" / "kb_extra"
 OUTPUT_DIR = ROOT / "outputs"

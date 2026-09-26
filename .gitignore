@@ -7,3 +7,5 @@ __pycache__/
 # Model weights never go into the repo
 *.gguf
 *.safetensors
+# CKE papers quote copyrighted sources: built locally by scripts/build_cke.py, never committed
+data/cke/

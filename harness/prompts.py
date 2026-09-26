@@ -2,6 +2,7 @@
 
 Examples are deliberately different from the dev set questions, so the dev score is not inflated.
 """
+import json
 import re
 
 from . import config
@@ -95,7 +96,36 @@ def build_messages(q, passages):
     image_note = "\n(Pytanie odnosi się do obrazu, którego nie widzisz. Wykorzystaj opis i wiedzę.)" if q.has_image else ""
     return [
         {"role": "system", "content": SYSTEM},
+        *cke_shots(),
         {"role": "user", "content": f"Pytanie: {ex_q}\n\n{instruction}"},
         {"role": "assistant", "content": _with_style(q.qtype, ex_a)},
         {"role": "user", "content": f"{_context_block(passages)}Pytanie: {_without_format_examples(q.text)}{image_note}\n\n{instruction}"},
     ]
+
+
+_CKE_SHOTS = None
+
+
+def cke_shots():
+    """v3: worked examples from real CKE papers, placed first and in a fixed order.
+
+    They come from data/cke/fewshot.json, built locally by scripts/build_cke.py (CKE papers quote
+    copyrighted sources, so they are not in the repository). Being an identical prefix for every
+    question, they are read once and then served from the model server's prompt cache.
+    """
+    global _CKE_SHOTS
+    if config.PROMPT_VERSION != "v3":
+        return []
+    if _CKE_SHOTS is None:
+        _CKE_SHOTS = []
+        path = config.CKE_DIR / "fewshot.json"
+        if path.exists():
+            for shot in json.loads(path.read_text(encoding="utf-8")):
+                instruction = f"{REASON} {FORMAT[shot['type']]}"
+                _CKE_SHOTS += [
+                    {"role": "user", "content": f"Pytanie: {_without_format_examples(shot['question'])}\n\n{instruction}"},
+                    {"role": "assistant", "content": shot["answer"]},
+                ]
+        else:
+            print(f"[prompts] v3 requested but {path} is missing; run scripts/build_cke.py")
+    return _CKE_SHOTS

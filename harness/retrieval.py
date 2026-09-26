@@ -5,8 +5,8 @@ Polish is heavily inflected, so words are cut to their first 6 letters ("Grunwal
 """
 import json
 import math
-import pickle
 import re
+import pickle
 from array import array
 from collections import Counter, defaultdict
 
@@ -106,6 +106,62 @@ def _article(title):
     return title.split(" (")[0]
 
 
+_CKE_INDEX = None
+_BOILERPLATE = re.compile(
+    r"\b(podaj|stosowan\w*|historiografii|nazw\w*|źródł\w*|fragment\w*|opracowani\w*|historyczn\w*|tekst\w*"
+    r"|zadani\w*|odpowied\w*|zaznacz\w*|właściw\w*|spośród|podanych|dokończ|zdanie|oceń|prawdziwoś\w*"
+    r"|stwierdze\w*|wpisz|prawda|fałsz|kolejności|jak|najkrócej|literami|wspomnian\w*|opisan\w*"
+    r"|przedstawion\w*|ilustracj\w*|mapie|mapa|na podstawie|dotyczy|mowa)\b", re.I)
+
+
+def _coverage(query_tokens, doc):
+    """Share of the query's words that also occur in the passage."""
+    return len(query_tokens & set(tokenize(doc["title"] + " " + doc["text"]))) / max(len(query_tokens), 1)
+
+
+def cke_passage(query):
+    """The marking-scheme answer for a question that repeats a CKE task, or None.
+
+    Only near-duplicates count: most of the question's words must occur in one passage. When the
+    question matches a task's sources, the answer passage of that task (best-matching subtask) is
+    returned instead, since the sources alone do not contain the answer.
+    """
+    global _CKE_INDEX
+    if _CKE_INDEX is None:
+        path = config.CKE_DIR / INDEX_FILE
+        _CKE_INDEX = False
+        if path.exists():
+            with open(path, "rb") as f:
+                _CKE_INDEX = pickle.load(f)
+        else:
+            print(f"[rag] USE_CKE=1 but {path} is missing; run scripts/build_cke.py")
+    if not _CKE_INDEX:
+        return None
+    # Exam boilerplate matches every CKE task equally; only the historical content should count.
+    query = _BOILERPLATE.sub(" ", query)
+    wanted = set(tokenize(query))
+    hits = _CKE_INDEX.search(query, 8)
+    best = next((h for h in hits if _coverage(wanted, h) >= config.CKE_MIN_COVERAGE), None)
+    m = best and re.match(r"CKE (\S+) zad\. (\d+)", best["title"])
+    if not m:
+        return None
+    # Candidates: every answer passage of that task group; the one whose own instruction the
+    # question repeats wins. Short generic questions fail this test, which stops false alarms.
+    exam, group = m.group(1), m.group(2)
+    answers = [d for d in _CKE_INDEX.docs
+               if re.fullmatch(rf"CKE {re.escape(exam)} zad\. {group}(\.\d+)?", d["title"])]
+    scored = [(_instruction_overlap(wanted, d), d) for d in answers]
+    overlap, pick = max(scored, key=lambda s: s[0], default=(0, None))
+    return pick if overlap >= config.CKE_MIN_INSTRUCTION else None
+
+
+def _instruction_overlap(query_tokens, doc):
+    """Share of the CKE task's own instruction words that the question contains."""
+    instruction = doc["text"].split(" | Odpowiedź", 1)[0].replace("Polecenie:", "")
+    words = set(tokenize(_BOILERPLATE.sub(" ", instruction)))
+    return len(words & query_tokens) / max(len(words), 1)
+
+
 def retrieve(q, k=None):
     """Top passages: the best cheat-sheet passage first, then Wikipedia, one passage per article."""
     if not config.USE_RAG:
@@ -117,6 +173,11 @@ def retrieve(q, k=None):
     query = q.stem if q.qtype in ("single", "multi", "short") else q.text
     candidates = index.search(query, 40)
     picked = [c for c in candidates if c.get("src") == "extra"][:1]
+    if config.USE_CKE:
+        # A matching CKE task or source takes the first Wikipedia slot; the prompt stays the same size.
+        cke = cke_passage(q.text)  # full text: the options are part of what identifies a task
+        if cke:
+            picked.insert(0, cke)
     seen = set()
     for c in candidates:
         if len(picked) >= k:

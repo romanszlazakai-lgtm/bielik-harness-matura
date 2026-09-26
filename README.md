@@ -47,6 +47,8 @@ expected answer; "lenient" applies this harness's normalizer to the bare model's
 | Bielik 1.5B Q8_0 (1.70 GB) | 3/46 (6.5%) | 18/46 (39.1%) | 29/46 (63.0%) | 34/46 (73.9%) |
 | Bielik 1.5B Q4_K_M (0.97 GB) | 3/46 (6.5%) | 16/46 (34.8%) | 28/46 (60.9%) | 28/46 (60.9%) |
 
+Harness v2 run (1 answer per question): Q4_K_M 31/46 (67.4%), 32.3 s per question.
+
 Seconds per question on the laptop CPU: bare model 29.7 (Q8) and 18.4 (Q4); harness v1 with 3 votes
 98.2 (Q8) and 71.1 (Q4).
 
@@ -64,6 +66,32 @@ wrongly):
 - **numeric:** year differences are never negative.
 - **voting:** off by default. Across the whole v1 run it fixed one answer and broke another, while
   doubling the time.
+
+## CKE papers (v3, optional)
+
+`scripts/build_cke.py` turns CKE exam papers, their marking schemes and exam materials into a local
+knowledge base: 70 tasks from the March 2022 sample paper and the May 2023 paper, each with its
+answer from the marking scheme, mapped onto the exam's formats where possible (6 single choice,
+5 true/false, 2 matching, 14 short, 16 decisions, 27 open). It reads PDFs through `pdftotext` and
+OCR exports in RTF (`harness/rtf.py`). CKE papers quote copyrighted sources, so everything it
+builds stays in `data/cke/` and is not committed; the papers are public on cke.gov.pl.
+
+```bash
+python scripts/build_cke.py --src path/to/cke/papers                    # for the exam
+python scripts/build_cke.py --src path/to/cke/papers --holdout 2023-05  # for evaluation
+PROMPT_VERSION=v3 USE_CKE=1 python scripts/run_dev.py --mode harness --data data/cke/heldout.jsonl
+```
+
+- **`PROMPT_VERSION=v3`** prepends three worked examples from the 2022 sample paper, listed in
+  `data/cke_fewshot.json` with the team's reasoning. They are the same prefix for every question,
+  so the model server reads them once and then serves them from its prompt cache.
+- **`USE_CKE=1`** recognises a question that repeats a CKE task and puts that task's marking-scheme
+  answer into the context. Two conditions must hold: most of the question's words occur in one
+  passage, and most of the CKE task's own instruction occurs in the question. On the 2023 paper
+  this finds the right subtask for 10 of 10 closed items. On the 46 dev questions, which repeat no
+  CKE task, it fires 0 times.
+- **`--holdout`** keeps one exam out of the index and writes its closed tasks to
+  `data/cke/heldout.jsonl` in the dev-set format, for an honest check on real CKE questions.
 
 ## Reproduce
 
