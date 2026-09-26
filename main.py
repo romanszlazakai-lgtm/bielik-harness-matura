@@ -30,11 +30,29 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 sys.stdout.reconfigure(encoding="utf-8")
 
-from harness import config, llm, qtypes  # noqa: E402
+from harness import config, llm, pdfinput, qtypes, sheet  # noqa: E402
 from harness.solve import solve  # noqa: E402
 
 
-def load_questions(path):
+def load_sheet(path, force_ocr=False):
+    """A PDF/RTF/text exam sheet -> questions, reading scanned pages with OCR."""
+    text, report = pdfinput.read_exam(path, force_ocr=force_ocr)
+    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    dump = config.OUTPUT_DIR / f"exam_text_{Path(path).stem}.txt"
+    dump.write_text(text, encoding="utf-8")
+    if "pages" in report:
+        print(f"PDF: {report['pages']} pages, {report['text_layer']} from the text layer, {report['ocr']} by OCR"
+              + (f", FAILED pages {report['failed']}: {report['ocr_error']}" if report["failed"] else ""))
+    questions = sheet.questions_from_text(text)
+    print(f"sheet text saved to {dump}; {len(questions)} questions found")
+    if not questions:
+        sys.exit("no questions found in the sheet; check the saved text")
+    return questions
+
+
+def load_questions(path, force_ocr=False):
+    if path != "-" and Path(path).suffix.lower() in (".pdf", ".rtf", ".txt"):
+        return load_sheet(path, force_ocr=force_ocr)
     raw = sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8-sig")
     raw = raw.strip()
     if raw.startswith("{") and '"questions"' in raw[:2000]:
@@ -71,14 +89,27 @@ def write_answers(rows, path, fmt):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--questions", required=True, help="exam file, or - for stdin")
-    parser.add_argument("--out", required=True, help="where to write the answers")
+    parser.add_argument("--questions", help="exam file (JSON, JSONL, PDF, RTF, TXT), or - for stdin")
+    parser.add_argument("--out", help="where to write the answers")
+    parser.add_argument("--force-ocr", action="store_true", help="OCR every PDF page, ignoring the text layer")
+    parser.add_argument("--check-ocr", action="store_true", help="report whether OCR is ready, then exit")
     parser.add_argument("--format", choices=["answers", "map", "jsonl", "csv"], default="answers")
     parser.add_argument("--mode", choices=["harness", "base"], default="harness")
     parser.add_argument("--resume", action="store_true", help="skip questions already in the trace file")
     args = parser.parse_args()
 
-    questions = load_questions(args.questions)
+    if args.check_ocr:
+        status = pdfinput.ocr_status()
+        ready = bool(status["renderer"] and status["tesseract"] and status["polish"])
+        print(f"renderer: {status['renderer'] or 'MISSING (pip install pymupdf)'}")
+        print(f"tesseract: {status['tesseract'] or 'MISSING (winget install UB-Mannheim.TesseractOCR)'}")
+        print(f"Polish model: {'yes' if status['polish'] else 'MISSING (pol.traineddata -> data/tessdata/)'}")
+        print("OCR ready" if ready else "OCR NOT ready: scanned pages cannot be read")
+        sys.exit(0 if ready else 1)
+    if not (args.questions and args.out):
+        parser.error("--questions and --out are required")
+
+    questions = load_questions(args.questions, force_ocr=args.force_ocr)
     config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     trace_path = config.OUTPUT_DIR / f"exam_trace_{args.mode}_{Path(args.out).stem}.jsonl"
 

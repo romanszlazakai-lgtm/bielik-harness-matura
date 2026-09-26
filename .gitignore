@@ -9,3 +9,5 @@ __pycache__/
 *.safetensors
 # CKE papers quote copyrighted sources: built locally by scripts/build_cke.py, never committed
 data/cke/
+# Tesseract language data, downloaded locally
+data/tessdata/

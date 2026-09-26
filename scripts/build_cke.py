@@ -35,24 +35,11 @@ sys.stdout.reconfigure(encoding="utf-8")
 
 from harness.retrieval import BM25  # noqa: E402
 from harness.rtf import rtf_to_text  # noqa: E402
+from harness.sheet import DASH, clean, parse_sheet  # noqa: E402,F401  (shared with the exam loader)
 
 OUT = ROOT / "data" / "cke"
 MONTHS = {"stycznia": 1, "lutego": 2, "marca": 3, "kwietnia": 4, "maja": 5, "czerwca": 6, "lipca": 7,
           "sierpnia": 8, "września": 9, "października": 10, "listopada": 11, "grudnia": 12}
-DASH = "[–-]"
-_NOISE = [
-    r"^\s*\d+(\.\d+)?\.\s*$",                      # margin task numbers "11.2."
-    rf"^\s*0{DASH}\d({DASH}\d)*\s*$",              # margin points "0–1"
-    r"^[\s.…_]{5,}$",                              # answer lines
-    r"Strona \d+ z \d+", r"^MHIP-R0_\d+\s*$", r"arkusze\.pl", r"^BRUDNOPIS", r"nie podlega ocenie",
-    r"^Egzamin maturalny z historii .{0,40}\d{4} r\.\s*$", r"^Zasady oceniania rozwiązań zadań\s*$",
-    r"^Egzamin maturalny z historii\s*$", r"^Arkusz pokazowy",
-]
-_NOISE_RE = [re.compile(p, re.M) for p in _NOISE]
-# Inline noise: the OCR export merges several forms of the paper, so page furniture sits mid-line.
-_INLINE_NOISE = re.compile(
-    r"MHIP-R0[ _]\w{3}\b|strona \d+ z \d+|Dalszy ciąg zadania na kolejnej stronie\.?"
-    r"|Zadania egzaminacyjne są wydrukowane na kolejnych stronach\.?|\(\d pkt\)", re.I)
 
 
 # ---------- reading ----------
@@ -67,12 +54,6 @@ def read_text(path):
     if path.suffix.lower() == ".rtf":
         return rtf_to_text(path.read_text(encoding="latin-1"))
     return path.read_text(encoding="utf-8", errors="replace")
-
-
-def clean(text):
-    lines = [l for l in text.splitlines() if not any(r.search(l) for r in _NOISE_RE)]
-    text = _INLINE_NOISE.sub("", "\n".join(l.rstrip() for l in lines))
-    return re.sub(r"\n{3,}", "\n\n", text).strip()
 
 
 def exam_id(path, text):
@@ -97,35 +78,6 @@ def role(path):
 
 
 # ---------- sheets ----------
-
-_HEAD = re.compile(rf"(?<![\w.])Zadanie (\d+)(?:\.(\d+))?\.(?:\s*\(0{DASH}\d\))?")
-
-
-def parse_sheet(text):
-    """Return {task_id: {"question", "sources"}}; a group header's text becomes its subtasks' sources."""
-    marks = list(_HEAD.finditer(text))
-    segs = []
-    for i, m in enumerate(marks):
-        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
-        segs.append((m.group(1), m.group(2), clean(text[m.end():end])))
-    has_sub = {num for num, sub, _ in segs if sub}
-    tasks, headers = {}, {}
-    # A heading can appear twice (page header, margin); keep the longest text for each id.
-    for num, sub, body in segs:
-        if sub:
-            tid = f"{num}.{sub}"
-            if len(body) >= len(tasks.get(tid, {}).get("question", "")):
-                tasks[tid] = {"question": body, "sources": ""}
-        elif num in has_sub:
-            if len(body) >= len(headers.get(num, "")):
-                headers[num] = body
-        elif len(body) >= len(tasks.get(num, {}).get("question", "")):
-            tasks[num] = {"question": body, "sources": ""}
-    for tid, rec in tasks.items():
-        if "." in tid:
-            rec["sources"] = headers.get(tid.split(".")[0], "")
-    return tasks
-
 
 # ---------- marking schemes ----------
 
