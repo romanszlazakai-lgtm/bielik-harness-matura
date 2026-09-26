@@ -45,7 +45,10 @@ expected answer; "lenient" applies this harness's normalizer to the bare model's
 | Model | Bare, strict | Bare, lenient | Harness v1 (3 votes) | Harness v1 replies, v2 normalizer |
 |---|---|---|---|---|
 | Bielik 1.5B Q8_0 (1.70 GB) | 3/46 (6.5%) | 18/46 (39.1%) | 29/46 (63.0%) | 34/46 (73.9%) |
-| Bielik 1.5B Q4_K_M (0.97 GB) | pending | pending | pending | pending |
+| Bielik 1.5B Q4_K_M (0.97 GB) | 3/46 (6.5%) | 16/46 (34.8%) | 28/46 (60.9%) | 28/46 (60.9%) |
+
+Seconds per question on the laptop CPU: bare model 29.7 (Q8) and 18.4 (Q4); harness v1 with 3 votes
+98.2 (Q8) and 71.1 (Q4).
 
 On the laptop CPU a question takes 70-100 s (prompt reading runs at about 7.5 tokens/s), so the
 exam should run on a GPU; the model and harness are unchanged either way.
