@@ -10,6 +10,11 @@ import time
 from . import config, llm, prompts
 from .retrieval import load_index
 
+_TOPIC_WORDING = re.compile(
+    r"\b(przyczyn\w*|skutk\w*|podobn\w*|oceń|wpływ\w*|uwzględni\w*|aspekt\w*|polityczn\w*|społeczn\w*|"
+    r"gospodarcz\w*|kulturow\w*|stanowisk\w*|tez\w*|uzasadnij|zajmij|wobec|powyższej|scharakteryzuj|"
+    r"porównaj|wybran\w*|trzech|argumentacji|swojej|charakteryzując|miały|miał|były|był|napisz|"
+    r"wypracowani\w*|temat\w*|stwierdzeni\w*|czynnik\w*|tego|okresu|powinno|liczyć|słów|najmniej)\b", re.I)
 _LABEL = re.compile(r"^\s*\**\s*(Wstęp|Argument\s*\d+|Podsumowanie|Zakończenie|Teza)\s*\**\s*[:.\-]?\s*", re.I | re.M)
 _SENTENCE_END = re.compile(r"[.!?…](?=\s|$)")
 
@@ -28,20 +33,31 @@ def choose_topic(topics):
     return max(topics, key=lambda t: sum(h["score"] for h in index.search(t, 5)))
 
 
-def essay_passages(topic, k=5):
-    """More context than a closed question gets: an essay needs facts for three arguments."""
+def essay_passages(topic, k=5, timeline=2):
+    """Context for three arguments: the best cheat-sheet (timeline) passages first, then Wikipedia.
+
+    The timeline carries the dates and names an essay needs; without it the 1.5B model invented
+    them (the first test essay dated the constitutional monarchy to 1790 and the KEN to 1790).
+    """
     index = load_index()
     if not index:
         return []
-    seen, picked = set(), []
-    for hit in index.search(topic, 40):
+    # Task wording ("przyczyny", "oceń", "uwzględnij aspekty") matches hundreds of articles; the
+    # search should run on the historical content of the topic only.
+    query = _TOPIC_WORDING.sub(" ", topic)
+    # The timeline is ranked on its own: among 56 000 Wikipedia passages it rarely reaches the top.
+    everything = index.search(query, len(index.docs))
+    picked = [dict(h, text=h["text"][:500]) for h in everything if h.get("src") == "extra"][:timeline]
+    hits = everything[:60]
+    seen = set()
+    for hit in hits:
+        if len(picked) >= k:
+            break
         article = hit["title"].split(" (")[0]
-        if article in seen:
+        if hit.get("src") == "extra" or article in seen:
             continue
         seen.add(article)
         picked.append(dict(hit, text=hit["text"][:500]))
-        if len(picked) >= k:
-            break
     return picked
 
 
@@ -51,19 +67,55 @@ def trim_unfinished(text):
     return text[: ends[-1].end()] if ends else text
 
 
-def finalize(text, topic=None):
-    """Remove section labels and repeated sentences; keep one paragraph per section."""
-    paragraphs, seen = [], set()
+_HEADING = re.compile(r"^\s*(#+\s*|Temat\s*:|Wnioski\s*:|Wniosek\s*:)", re.I)
+_BULLET = re.compile(r"^\s*(?:[-*•–]|\d+[.)])\s+")
+
+
+def _stem_set(sentence):
+    return {w[:6] for w in re.findall(r"[^\W\d_]{3,}", sentence.lower())}
+
+
+def _prose(block):
+    """Markdown and bullet lists -> plain sentences; headings without a sentence are dropped."""
+    lines = []
+    for line in block.splitlines():
+        line = re.sub(r"\*\*|__|`", "", line).strip()
+        if not line or _HEADING.match(line):
+            continue
+        is_bullet = bool(_BULLET.match(line))
+        line = _BULLET.sub("", line)
+        if line.endswith(":"):  # "- Czynniki polityczne:" introduces a list, it is not a sentence
+            continue
+        # "Konflikt z Wielką Brytanią: Koloniści..." keeps the sentence, loses the short label.
+        m = re.match(r"^([^.:!?]{2,60}):\s+(.+)$", line)
+        if m and len(m.group(1).split()) <= 6:
+            line = m.group(2)
+        # A line with no sentence end and few words is a heading ("Reforma gospodarcza").
+        if not re.search(r"[.!?…]$", line) and len(line.split()) <= 8 and not is_bullet:
+            continue
+        if not re.search(r"[.!?…]$", line):
+            line += "."
+        lines.append(line[0].upper() + line[1:])
+    return " ".join(lines)
+
+
+def finalize(text, topic=None, similarity=0.7):
+    """Plain prose, one paragraph per section; repeated and near-repeated sentences are removed."""
+    paragraphs, kept_stems = [], []
     for block in re.split(r"\n\s*\n|\n(?=\s*\**\s*(?:Wstęp|Argument\s*\d+|Podsumowanie|Zakończenie)\b)", text):
-        block = _LABEL.sub("", block).strip()
+        block = _prose(_LABEL.sub("", block.strip()))
         if not block:
             continue
         kept = []
         for sentence in re.split(r"(?<=[.!?…])\s+", block):
-            key = re.sub(r"\W+", " ", sentence.lower()).strip()
-            if key and key not in seen:
-                seen.add(key)
-                kept.append(sentence.strip())
+            stems = _stem_set(sentence)
+            if not stems:
+                continue
+            # Near-duplicate: most words shared with a sentence already kept ("kolonialnych koloniach").
+            if any(len(stems & old) / max(len(stems | old), 1) >= similarity for old in kept_stems):
+                continue
+            kept_stems.append(stems)
+            kept.append(sentence.strip())
         if kept:
             paragraphs.append(" ".join(kept))
     body = "\n\n".join(paragraphs)

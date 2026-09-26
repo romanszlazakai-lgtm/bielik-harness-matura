@@ -39,13 +39,21 @@ def text_layer_pages(path):
     return pages[:-1] if pages and not pages[-1].strip() else pages
 
 
+def _pymupdf():
+    """PyMuPDF module or None (new name 'pymupdf', older installs only have 'fitz')."""
+    for name in ("pymupdf", "fitz"):
+        try:
+            return __import__(name)
+        except ImportError:
+            continue
+    return None
+
+
 def page_count(path):
-    try:
-        import fitz  # PyMuPDF
-        with fitz.open(str(path)) as doc:
+    mupdf = _pymupdf()
+    if mupdf:
+        with mupdf.open(str(path)) as doc:
             return doc.page_count
-    except ImportError:
-        pass
     exe = shutil.which("pdfinfo")
     if exe:
         out = subprocess.run([exe, str(path)], capture_output=True, text=True).stdout
@@ -68,7 +76,7 @@ def _tessdata_env():
 
 def ocr_status():
     """What OCR can do on this machine, as a short report (also used by --check-ocr)."""
-    renderer = "PyMuPDF" if _has_fitz() else ("pdftoppm" if shutil.which("pdftoppm") else None)
+    renderer = "PyMuPDF" if _pymupdf() else ("pdftoppm" if shutil.which("pdftoppm") else None)
     engine = tesseract()
     langs = []
     if engine:
@@ -77,20 +85,12 @@ def ocr_status():
     return {"renderer": renderer, "tesseract": engine, "polish": "pol" in langs, "langs": langs}
 
 
-def _has_fitz():
-    try:
-        import fitz  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
 def _render(path, page_no, out_dir, dpi=300):
     """Render one page (1-based) to PNG; returns the image path."""
     target = Path(out_dir) / f"page{page_no:03d}.png"
-    if _has_fitz():
-        import fitz
-        with fitz.open(str(path)) as doc:
+    mupdf = _pymupdf()
+    if mupdf:
+        with mupdf.open(str(path)) as doc:
             doc[page_no - 1].get_pixmap(dpi=dpi).save(str(target))
         return target
     exe = shutil.which("pdftoppm")

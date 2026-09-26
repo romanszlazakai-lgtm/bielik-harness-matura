@@ -59,10 +59,29 @@ DRAFT = ("Wstęp: Reformy Sejmu Wielkiego były próbą ratowania państwa w lat
          "Argument 1: " + " ".join([SENT] * 3) + "\n\n"        # repeated sentence must be removed
          "Argument 2: Konstytucja 3 maja 1791 r. zniosła liberum veto i wolną elekcję, co wzmacniało władzę. "
          "Argument 3: Konfederacja targowicka i wojna z Rosją w 1792 r. przerwały reformy, a potem nastąpił")  # cut off
+FACTS = ["Ustawa o miastach z kwietnia 1791 r. dała mieszczanom prawo nabywania dóbr ziemskich",
+         "Sejm uchwalił w 1788 r. powiększenie armii do stu tysięcy żołnierzy",
+         "Ofiara dziesiątego grosza z 1789 r. była pierwszym stałym podatkiem dochodowym szlachty",
+         "Rada Nieustająca została zniesiona w styczniu 1789 r. pod naciskiem stronnictwa patriotycznego",
+         "Konstytucja 3 maja wprowadziła trójpodział władzy według myśli Monteskiusza",
+         "Zasada dziedziczności tronu miała zakończyć zagraniczne ingerencje przy elekcjach",
+         "Straż Praw skupiała władzę wykonawczą przy królu i ministrach odpowiedzialnych przed sejmem",
+         "Konfederacja targowicka zawiązana w 1792 r. wezwała na pomoc armię rosyjską",
+         "Wojna w obronie Konstytucji zakończyła się przystąpieniem króla do Targowicy",
+         "Drugi rozbiór w 1793 r. odebrał Rzeczypospolitej ogromne obszary na wschodzie i zachodzie",
+         "Sejm grodzieński w 1793 r. unieważnił postanowienia Sejmu Czteroletniego",
+         "Insurekcja kościuszkowska w 1794 r. była próbą obrony reform zbrojnym powstaniem",
+         "Hugo Kołłątaj i Ignacy Potocki należeli do głównych twórców ustawy rządowej",
+         "Prawo o sejmikach odebrało głos szlachcie gołocie nieposiadającej ziemi",
+         "Chłopi zostali wzięci pod opiekę prawa i rządu krajowego",
+         "Przymierze z Prusami zawarte w 1790 r. okazało się złudną gwarancją bezpieczeństwa",
+         "Katarzyna II uznała zmiany ustrojowe za zagrożenie dla wpływów rosyjskich",
+         "Uniwersał połaniecki ograniczył pańszczyznę i zapewnił chłopom wolność osobistą"]
+
+
 def extension(call):
-    """Each extension brings new sentences, as a real model would (identical ones get deduplicated)."""
-    body = " ".join(f"Fakt {call}.{i}: ustawa o miastach z 1791 r. dała mieszczanom prawo nabywania ziemi."
-                    for i in range(1, 16))
+    """Each extension brings new sentences, as a real model would (repeats get removed)."""
+    body = " ".join(f"{fact}, co pokazuje etap {call}." for fact in FACTS)
     return f"Argument {call + 2}: {body}\n\nPodsumowanie: Reformy były szansą, ale zabrakło czasu i sił na ich obronę."
 
 
@@ -88,6 +107,30 @@ check("duplicates removed", text.count(SENT) == 1, str(text.count(SENT)))
 check("topic stated", text.startswith("Wybrany temat:"))
 check("has conclusion", "zabrakło czasu" in text)
 
-total = len(DETECT) + 1 + 2 + 3 + 9
+# ---- clean-up of what the model actually produced in the first live test ----
+MARKDOWN = ("**Temat:** **Rewolucja amerykańska i francuska miały podobne przyczyny**\n\n"
+            "Reforma ustroju politycznego**\n"
+            "- **Czynniki polityczne:**\n"
+            "  - **Konflikt z władzą brytyjską:** Koloniści walczyli o niepodległość od Wielkiej Brytanii.\n"
+            "  - **Brak reprezentacji:** Koloniści nie mieli posłów w parlamencie w Londynie\n\n"
+            "- **Czynniki kulturowe:**\n"
+            "  - **Idee oświecenia:** Koloniści cenili sobie wolność i równość głoszone przez oświecenie.\n\n"
+            "**Wnioski:**\n"
+            "- Koloniści cenlili sobie wolność i równość głoszone przez oświecenie.")
+clean = essay.finalize(MARKDOWN)
+check("no markdown left", "**" not in clean and "- " not in clean and "Temat:" not in clean, clean)
+check("headings dropped", "Reforma ustroju politycznego" not in clean and "Czynniki polityczne" not in clean, clean)
+check("bullets kept as sentences", "Koloniści walczyli o niepodległość od Wielkiej Brytanii." in clean
+      and "nie mieli posłów w parlamencie w Londynie." in clean, clean)
+check("near-duplicate removed", clean.count("wolność i równość") == 1, clean)
+
+from harness import normalize  # noqa: E402
+decision = qtypes.parse("Rozstrzygnij, czy hołd pruski oznaczał włączenie Prus do Korony. Odpowiedź uzasadnij.")
+out = normalize.normalize(decision, "Uzasadnienie: Prusy Książęce zostały lennem Polski, a nie częścią Korony.\n"
+                                    "Rozstrzygnięcie: Nie")
+check("decision reordered", out.startswith("Rozstrzygnięcie: Nie\nUzasadnienie: Prusy Książęce"), out)
+check("decision facts first in prompt", prompts.DECISION_FORMAT.index("Uzasadnienie") < prompts.DECISION_FORMAT.index("Rozstrzygnięcie"))
+
+total = len(DETECT) + 1 + 2 + 3 + 9 + 6
 print(f"{total - failures}/{total} checks passed")
 sys.exit(1 if failures else 0)

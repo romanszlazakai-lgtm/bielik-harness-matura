@@ -356,8 +356,18 @@ def short(q, raw):
 
 
 def open_answer(q, raw):
-    """Keep the whole reply: an open answer is graded on its justification, not just the last line."""
+    """Keep the whole reply: an open answer is graded on its justification, not just the last line.
+
+    Decisions are asked for facts first and verdict last; here they go back to the marking
+    scheme's order, verdict first.
+    """
     text = re.sub(r"^\s*Odpowied[zź]\s*:\s*", "", raw.strip(), flags=re.I)
+    text = re.sub(r"\*\*|__", "", text)
+    verdict = re.search(r"Rozstrzygnięcie\s*:\s*(.+)", text, re.I)
+    reason = re.search(r"Uzasadnienie\s*:\s*(.+?)(?=\n\s*Rozstrzygnięcie\s*:|\Z)", text, re.I | re.S)
+    if verdict and reason:
+        reason_text = re.sub(r"\s+", " ", reason.group(1)).strip()
+        return f"Rozstrzygnięcie: {verdict.group(1).strip()}\nUzasadnienie: {reason_text}"
     return "\n".join(l.strip() for l in text.splitlines() if l.strip())
 
 

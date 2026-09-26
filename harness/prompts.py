@@ -25,11 +25,15 @@ FORMAT = {
 }
 
 # "Rozstrzygnij, czy..." tasks: the CKE marking scheme expects a verdict plus a justification.
-DECISION_FORMAT = ("Odpowiedz dokładnie w dwóch liniach.\nRozstrzygnięcie: <krótka odpowiedź, np. Tak albo Nie, albo nazwa>\n"
-                   "Uzasadnienie: <1-2 zdania z konkretnym faktem historycznym (data, postać, nazwa) i odwołaniem do źródła, jeśli jest>")
+# Facts come first and the verdict last: asked for the verdict first, the 1.5B model said "Tak"
+# to every claim; the code puts the lines back in the marking scheme's order afterwards.
+DECISION_FORMAT = ("Odpowiedz dokładnie w dwóch liniach, w tej kolejności.\n"
+                   "Uzasadnienie: <1-2 zdania z konkretnym faktem historycznym (data, postać, nazwa) i odwołaniem do źródła, jeśli jest>\n"
+                   "Rozstrzygnięcie: <Tak albo Nie, albo krótka nazwa>\n"
+                   "Sprawdź, czy fakty potwierdzają twierdzenie z polecenia; jeśli mu przeczą, rozstrzygnięcie brzmi Nie.")
 DECISION_EXAMPLE = (
     "Rozstrzygnij, czy unia w Krewie była unią realną. Odpowiedź uzasadnij.",
-    "Rozstrzygnięcie: Nie\nUzasadnienie: Unia w Krewie z 1385 r. była unią personalną, łączącą Polskę i Litwę osobą władcy, Władysława Jagiełły; unię realną ustanowiła dopiero unia lubelska w 1569 r.",
+    "Uzasadnienie: Unia w Krewie z 1385 r. łączyła Polskę i Litwę tylko osobą władcy, Władysława Jagiełły, czyli była unią personalną; unię realną ustanowiła dopiero unia lubelska w 1569 r.\nRozstrzygnięcie: Nie",
 )
 
 ESSAY_SYSTEM = ("Jesteś maturzystą, który pisze wypracowanie z historii na poziomie rozszerzonym. Piszesz poprawną "
@@ -43,12 +47,14 @@ ESSAY_INSTRUCTION = (
     "Argument 3: kolejny fakt, analiza i wniosek.\n"
     "Podsumowanie: potwierdzenie tezy i ogólny wniosek.\n"
     "Jeśli temat wymienia aspekty (np. polityczne, społeczno-gospodarcze, kulturowe), poświęć każdemu jeden argument. "
-    "Nie powtarzaj zdań."
+    "Opieraj się na faktach z podanych fragmentów, zwłaszcza z osi czasu, i nie wymyślaj dat. "
+    "Pisz ciągłą prozą: bez wypunktowań, nagłówków, pogrubień i gwiazdek. Nie powtarzaj zdań."
 )
 ESSAY_EXTEND = (
     "Wypracowanie ma {words} słów, a wymagane jest co najmniej {min_words}. Dopisz dalszą część: "
     "Argument {next_arg}: nowy fakt historyczny (data, postać, wydarzenie), jego analizę i wniosek, "
-    "a potem Podsumowanie: potwierdzenie tezy. Nie powtarzaj wcześniejszych zdań. Zacznij od etykiety 'Argument {next_arg}:'."
+    "a potem Podsumowanie: potwierdzenie tezy. Pisz ciągłą prozą, bez wypunktowań. Nie powtarzaj wcześniejszych zdań. "
+    "Zacznij od etykiety 'Argument {next_arg}:'."
 )
 ESSAY_CONCLUDE = "Dopisz tylko Podsumowanie: 3-4 zdania potwierdzające tezę i ogólny wniosek. Zacznij od etykiety 'Podsumowanie:'."
 
