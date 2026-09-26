@@ -105,8 +105,17 @@ def _prose(block):
     return " ".join(lines)
 
 
+_REFERENCES = re.compile(r"^\s*(\[\d+\]|(Źródła|Bibliografia|Przypisy|Literatura)\s*:?\s*$)", re.I | re.M)
+
+
 def finalize(text, topic=None, similarity=0.7):
-    """Plain prose, one paragraph per section; repeated and near-repeated sentences are removed."""
+    """Plain prose, one paragraph per section; repeated and near-repeated sentences are removed.
+
+    A reference list is cut off entirely: the model invents it ("[1] Encyklopedia PWN, 2023").
+    """
+    m = _REFERENCES.search(text)
+    if m:
+        text = text[: m.start()]
     paragraphs, kept_stems = [], []
     for block in re.split(r"\n\s*\n|\n(?=\s*\**\s*(?:Wstęp|Argument\s*\d+|Podsumowanie|Zakończenie)\b)", text):
         block = _prose(_LABEL.sub("", block.strip()))

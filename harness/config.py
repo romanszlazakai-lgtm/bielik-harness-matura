@@ -20,6 +20,8 @@ VOTE_TEMPERATURE = float(_env("VOTE_TEMPERATURE", "0.7"))
 REASONING = _env("REASONING", "1") == "1"            # short fact recall before the answer
 MAX_TOKENS = int(_env("MAX_TOKENS", "160"))
 OPEN_MAX_TOKENS = int(_env("OPEN_MAX_TOKENS", "260"))    # open answers: answer + justification
+OPEN_MAX_SENTENCES = int(_env("OPEN_MAX_SENTENCES", "2"))          # later sentences were mostly invented
+DECISION_REASON_SENTENCES = int(_env("DECISION_REASON_SENTENCES", "1"))
 ESSAY_MAX_TOKENS = int(_env("ESSAY_MAX_TOKENS", "1000"))  # one essay draft
 ESSAY_MIN_WORDS = int(_env("ESSAY_MIN_WORDS", "300"))     # organisers' minimum; shorter drafts get extended
 ESSAY_MAX_EXTENSIONS = int(_env("ESSAY_MAX_EXTENSIONS", "3"))

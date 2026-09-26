@@ -156,6 +156,23 @@ check("argument before conclusion", text.rstrip().endswith("by ocalić Rzeczposp
 check("no second conclusion", "Drugie podsumowanie" not in text)
 check("asked for argument only", "Nie pisz podsumowania" in calls[1][-1]["content"])
 
-total = len(DETECT) + 1 + 2 + 3 + 9 + 6 + 4
+# ---- third live test: invented follow-up sentences and an invented reference list ----
+d = normalize.normalize(decision, "Uzasadnienie: Konfederacja warszawska z 1573 r. chroniła tylko szlachtę, nie chłopów. "
+                                  "W 1576 r. konfederacja brzeska ustanowiła unię kościelną.\nRozstrzygnięcie: Nie")
+check("decision: first sentence only", d == "Rozstrzygnięcie: Nie\nUzasadnienie: Konfederacja warszawska z 1573 r. "
+                                         "chroniła tylko szlachtę, nie chłopów.", d)
+o = normalize.normalize(qtypes.parse("Wyjaśnij, dlaczego zniesiono liberum veto."),
+                        "Liberum veto paraliżowało obrady sejmu. Sejmy zrywano od 1652 r. Konstytucja wprowadziła równość stanów.")
+check("open: two sentences", o == "Liberum veto paraliżowało obrady sejmu. Sejmy zrywano od 1652 r. Konstytucja "
+                                  "wprowadziła równość stanów.", o)  # "r." is read as "roku", so no split there
+o2 = normalize.normalize(qtypes.parse("Wyjaśnij znaczenie unii lubelskiej."),
+                         "Unia utworzyła jedno państwo. Wprowadziła wspólny sejm. Zmieniła też kalendarz.")
+check("open: third sentence dropped", o2 == "Unia utworzyła jedno państwo. Wprowadziła wspólny sejm.", o2)
+check("abbreviations kept", normalize.sentences("Gen. Józef Bem walczył w 1848 r. na Węgrzech. Potem wyjechał.")[0]
+      == "Gen. Józef Bem walczył w 1848 r. na Węgrzech.")
+refs = essay.finalize("Wstęp: Obie rewolucje miały wspólne źródła w oświeceniu.\n\n[1] Encyklopedia PWN, 2023. [2] Inna.")
+check("references cut", "Encyklopedia" not in refs and "oświeceniu" in refs, refs)
+
+total = len(DETECT) + 1 + 2 + 3 + 9 + 6 + 4 + 5
 print(f"{total - failures}/{total} checks passed")
 sys.exit(1 if failures else 0)

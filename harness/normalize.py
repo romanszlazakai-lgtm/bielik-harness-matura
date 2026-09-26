@@ -355,25 +355,42 @@ def short(q, raw):
     return " ".join(words[:8])
 
 
-def open_answer(q, raw):
-    """Keep the whole reply: an open answer is graded on its justification, not just the last line.
+# Abbreviations after which a full stop does not end a sentence ("1573 r.", "gen. Bem", "m.in.").
+_ABBREV = (r"(?<!\b[rwn]\.)(?<!\b[nN]p\.)(?<!\b[śŚ]w\.)(?<!\b[gG]en\.)(?<!\b[kK]s\.)(?<!\b[tT]zw\.)(?<!\b[oO]k\.)"
+           r"(?<!\bp\.n\.e\.)(?<!\bm\.in\.)(?<!\b[dD]r\.)(?<!\b[bB]p\.)(?<!\b[kK]ard\.)(?<!\b[pP]łk\.)")
+_SENTENCE_SPLIT = re.compile(rf"(?<=[.!?…]){_ABBREV}\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ0-9„\"])")
 
-    Decisions are asked for facts first and verdict last; here they go back to the marking
-    scheme's order, verdict first.
+
+def sentences(text):
+    return [s.strip() for s in _SENTENCE_SPLIT.split(text.strip()) if s.strip()]
+
+
+def open_answer(q, raw):
+    """Keep the justification, but only its first sentence(s).
+
+    In the live tests the 1.5B model's first sentence was usually right and the ones it added
+    were invented ("w 1576 r. konfederacja brzeska..."); a factual error costs the point, so the
+    answer stops early. Decisions are asked for facts first and verdict last; here they go back to
+    the marking scheme's order, verdict first.
     """
     text = re.sub(r"^\s*Odpowied[zź]\s*:\s*", "", raw.strip(), flags=re.I)
     text = re.sub(r"\*\*|__", "", text)
     verdict = re.search(r"Rozstrzygnięcie\s*:\s*(.+)", text, re.I)
     reason = re.search(r"Uzasadnienie\s*:\s*(.+?)(?=\n\s*Rozstrzygnięcie\s*:|\Z)", text, re.I | re.S)
     if verdict and reason:
-        reason_text = re.sub(r"\s+", " ", reason.group(1)).strip()
-        return f"Rozstrzygnięcie: {verdict.group(1).strip()}\nUzasadnienie: {reason_text}"
-    return "\n".join(l.strip() for l in text.splitlines() if l.strip())
+        kept = " ".join(sentences(re.sub(r"\s+", " ", reason.group(1)))[: config.DECISION_REASON_SENTENCES])
+        return f"Rozstrzygnięcie: {verdict.group(1).strip()}\nUzasadnienie: {kept}"
+    flat = re.sub(r"\s+", " ", "\n".join(l.strip() for l in text.splitlines() if l.strip()))
+    return " ".join(sentences(flat)[: config.OPEN_MAX_SENTENCES])
+
+
+def essay_answer(q, raw):
+    return raw.strip()
 
 
 NORMALIZERS = {
     "single": single, "multi": multi, "tflist": tflist, "matching": matching,
-    "order": order, "numeric": numeric, "short": short, "open": open_answer, "essay": open_answer,
+    "order": order, "numeric": numeric, "short": short, "open": open_answer, "essay": essay_answer,
 }
 
 
