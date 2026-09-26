@@ -16,6 +16,8 @@ _NOISE = [
     rf"^\s*\d+(\.\d+)?\.\s*0{DASH}\d\s*$",         # margin "14.1. 0–1" on one line
     r"^\s*(HISTORIA|Poziom rozszerzony|Formuła 20\d\d)\s*$", r"^\s*WYPRACOWANIE na temat",
     r"^\s*(Rozstrzygnięcie|Uzasadnienie|Odpowiedź|Nazwa|Nazwisko)\s*:\s*$",  # empty answer fields
+    r"[A-ZĄĆĘŁŃÓŚŹŻ]{10,}",                         # OCR of ruled answer lines: "AAAAAAAVAAOOU"
+    r"^\s*(Rozstrzygnięcie|Uzasadnienie)\s*:\s*[.e…x\s]*$",  # OCR'd empty field with its dots
 ]
 _NOISE_RE = [re.compile(p, re.M) for p in _NOISE]
 # Inline noise: OCR exports and merged forms leave page furniture mid-line.
@@ -103,9 +105,34 @@ def _natural(tid):
     return [int(p) for p in tid.split(".")]
 
 
+_INSTRUCTION_LINE = re.compile(
+    r"^\s*(Rozstrzygnij|Podaj|Wyjaśnij|Oceń|Porównaj|Przedstaw|Scharakteryzuj|Dokończ|Zaznacz|"
+    r"Uporządkuj|Przyporządkuj|Wymień|Uzasadnij|Wskaż|Napisz)\b", re.M)
+
+
+def recover_headings(text):
+    """Give a number to a page that holds a task instruction but no 'Zadanie N.' heading.
+
+    CKE prints headings white on a dark bar; OCR misses them on pages that open with a picture
+    (tasks 1 and 15 of the May 2023 paper). Such a page gets the next task number, so its
+    instruction is not swallowed by the preamble or by the previous task.
+    """
+    if "\f" not in text:
+        return text
+    pages, last = text.split("\f"), 0
+    for i, page in enumerate(pages):
+        heads = list(_HEAD.finditer(page))
+        if heads:
+            last = int(heads[-1].group(1))
+        elif _INSTRUCTION_LINE.search(page) and len(re.findall(r"[^\W\d_]", page)) > 40:
+            last += 1
+            pages[i] = f"Zadanie {last}.\n{page}"
+    return "\f".join(pages)
+
+
 def questions_from_text(text):
     """Split a whole sheet into dev/exam items: [{"id", "question"}] in task order."""
-    tasks = parse_sheet(text)
+    tasks = parse_sheet(recover_headings(text))
     if tasks:
         return [{"id": f"Z{tid}", "question": to_question_text(rec["question"], rec["sources"])}
                 for tid, rec in sorted(tasks.items(), key=lambda kv: _natural(kv[0])) if rec["question"]]

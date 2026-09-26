@@ -77,6 +77,16 @@ ocr_calls.clear()
 text, report = pdfinput.read_pdf("exam.pdf", force_ocr=True)
 check("force OCR", ocr_calls == [1, 2, 3], str(ocr_calls))
 
-total = 7 + 5
+# ---- OCR missed a heading printed on a dark bar (tasks 1 and 15 of the May 2023 paper) ----
+LOST = ("Zadania egzaminacyjne są wydrukowane na następnych stronach.\f"
+        "Ilustracja przedstawiająca rekonstrukcję zabudowań z epoki kamienia.\n"
+        "Rozstrzygnij, czy rekonstrukcja dotyczy epoki paleolitu czy neolitu. Odpowiedź uzasadnij.\f"
+        "Zadanie 2. (0–1)\nPodaj nazwę dokumentu z 1505 r. Odpowiedz jak najkrócej.\f"
+        "Józef Chełmoński, Bociany, obraz olejny przedstawiający wiejski krajobraz.\n"
+        "Podaj nazwę stylu w malarstwie, którego przykładem jest obraz. Odpowiedź uzasadnij.")
+ids = [q["id"] for q in sheet.questions_from_text(LOST)]
+check("headings recovered", ids == ["Z1", "Z2", "Z3"], str(ids))
+
+total = 7 + 5 + 1
 print(f"{total - failures}/{total} checks passed")
 sys.exit(1 if failures else 0)
