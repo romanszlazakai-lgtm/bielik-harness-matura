@@ -94,6 +94,19 @@ Point the exam script at `http://localhost:8000/v1` (OpenAI style) or `http://lo
 (Ollama style). Every question and answer is logged to `outputs/server_log.jsonl`.
 The bare-model run points the exam script straight at LM Studio (`http://localhost:1234/v1`).
 
+If the exam comes as a file instead, `main.py` answers it with the same pipeline:
+
+```bash
+python main.py --questions exam.json --out answers.json               # harness
+python main.py --questions exam.json --out base.json --mode base      # untouched model
+python main.py --questions exam.json --out answers.json --resume      # continue after a crash
+```
+
+Input is `{"questions": [...]}`, a JSON list or JSON Lines, with `id`, `question`, and optionally
+`type` and `options`. `--format` picks the output: `answers` (default,
+`{"answers": [{"question_id", "given"}]}`), `map`, `jsonl` or `csv`. Answers are written after
+every question, and a per-question trace goes to `outputs/`.
+
 ## Sources
 
 | Source | Licence | How it is used |

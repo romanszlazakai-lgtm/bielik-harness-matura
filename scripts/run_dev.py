@@ -21,12 +21,7 @@ from harness.grade import is_correct  # noqa: E402
 from harness.solve import solve  # noqa: E402
 
 
-def question_text(item):
-    """Question as the exam script would send it: stem, then one option per line."""
-    text = item["question"]
-    if item.get("options"):
-        text += "\n" + "\n".join(f"{k}) {v}" for k, v in item["options"].items())
-    return text
+question_text = qtypes.format_question
 
 
 def run_base(item):

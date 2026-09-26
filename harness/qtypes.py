@@ -100,6 +100,20 @@ def detect_type(text, has_options):
     return "short"
 
 
+def format_question(item):
+    """Question text as sent to the model: stem, then one option per line.
+
+    Accepts options as {"A": "..."} or ["...", "..."], under "options" or "choices".
+    """
+    text = str(item.get("question") or item.get("prompt") or item.get("text") or "").strip()
+    options = item.get("options") or item.get("choices")
+    if isinstance(options, list):
+        options = {LETTERS[i]: str(o) for i, o in enumerate(options)}
+    if options:
+        text += "\n" + "\n".join(f"{k}) {v}" for k, v in options.items())
+    return text
+
+
 def parse(text, declared_type=None, has_image=False):
     options = parse_options(text)
     qtype = declared_type if declared_type in TYPES else detect_type(text, bool(options))
