@@ -106,6 +106,43 @@ def _article(title):
     return title.split(" (")[0]
 
 
+_ENTRY = re.compile(r"(?<![\d.\-/])(?=(?:ok\. )?\d{1,4}(?:[-/]\d{1,4})?(?: p\.n\.e\.)?: )")
+_SENTENCE = re.compile(r"(?<=[.;!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ0-9])")
+
+
+def item_hint(text, context="", max_chars=200):
+    """One short fact for one statement, option or element: a cheat-sheet line or a Wikipedia sentence.
+
+    Whole-question retrieval serves the dominant topic of a list question; each item gets its own
+    evidence here, so a small model can judge items one by one. The item's own words decide;
+    words from the question's criterion (`context`) only break ties.
+    """
+    index = load_index()
+    if not index:
+        return ""
+    wanted = set(tokenize(text))
+    extra = set(tokenize(context)) - wanted
+    if not wanted:
+        return ""
+    best, best_score, best_own = "", 0.0, 0.0
+    for doc in index.search(f"{text} {context}", 15):
+        pieces = _ENTRY.split(doc["text"]) if doc.get("src") == "extra" else _SENTENCE.split(doc["text"])
+        for piece in pieces:
+            piece = piece.strip()
+            if len(piece) < 15:
+                continue
+            tokens = set(tokenize(piece))
+            own = len(wanted & tokens) / len(wanted)
+            score = own + 0.3 * len(extra & tokens) / max(len(extra), 1)
+            if doc.get("src") == "extra":
+                score += 0.1  # the cheat sheet is dated and dense: prefer it on ties
+            if score > best_score:
+                best, best_score, best_own = piece, score, own
+    if best_own < 0.5:
+        return ""
+    return best if len(best) <= max_chars else best[:max_chars].rsplit(" ", 1)[0] + "…"
+
+
 _CKE_INDEX = None
 _BOILERPLATE = re.compile(
     r"\b(podaj|stosowan\w*|historiografii|nazw\w*|źródł\w*|fragment\w*|opracowani\w*|historyczn\w*|tekst\w*"

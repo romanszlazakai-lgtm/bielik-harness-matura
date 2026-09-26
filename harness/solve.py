@@ -67,7 +67,7 @@ def solve(text, declared_type=None, has_image=False, votes=None):
     raws, answers = [], []
     for i in range(n_votes):
         temperature = 0.0 if i == 0 else config.VOTE_TEMPERATURE
-        raw = llm.chat(messages, temperature=temperature)
+        raw = llm.chat(messages, temperature=temperature, max_tokens=prompts.max_tokens(q))
         raws.append(raw)
         answers.append(normalize.normalize(q, raw))
         # Stop early when the first two samples already agree.

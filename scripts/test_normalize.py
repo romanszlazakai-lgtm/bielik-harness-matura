@@ -69,6 +69,34 @@ REAL_CASES = [
     (YEARS_Q, "WYRAŻENIE: 1791-1918\nOdpowiedź: 207", "127"),
 ]
 
+UPRISING_MULTI_Q = ("Zaznacz wszystkie powstania, które wybuchły w XIX wieku. (Może być kilka poprawnych, podaj "
+                    "wszystkie litery.)\nA) insurekcja kościuszkowska\nB) powstanie listopadowe\nC) powstanie styczniowe"
+                    "\nD) powstanie wielkopolskie 1918-1919\nE) powstanie krakowskie")
+YEAR_MULTI_Q = ("Zaznacz wszystkie wydarzenia, które miały miejsce w Polsce w 1989 r. (Może być kilka poprawnych, "
+                "podaj wszystkie litery.)\nA) obrady Okrągłego Stołu\nB) wybory parlamentarne 4 czerwca\n"
+                "C) wprowadzenie stanu wojennego\nD) powołanie rządu Tadeusza Mazowieckiego\nE) podpisanie porozumień sierpniowych")
+GNIEZNO_TF_Q = ("Oceń prawdziwość stwierdzeń. Wpisz P (prawda) lub F (fałsz). (1) Chrzest Mieszka I miał miejsce w 966 r. "
+                "(2) Zjazd gnieźnieński odbył się w 1000 r. (3) Pierwszą koronacją królewską w Polsce była koronacja "
+                "Mieszka II. Odpowiedz literami P/F w kolejności, np. P,F,P.")
+
+# v3 line formats and v2 replies the line parser now reads correctly.
+V3_CASES = [
+    (GNIEZNO_TF_Q, "1. Chrzest w 966 r. => P\n2. Zjazd gnieźnieński, 1000 r. => P\n3. Pierwszy był Bolesław Chrobry "
+                   "w 1025 r. => F\nOdpowiedź: P,F,P", "P,P,F"),
+    (UPRISING_MULTI_Q, "A: insurekcja kościuszkowska, 1794 r. => TAK\nB: powstanie listopadowe, 1830 r. => TAK\n"
+                       "C: powstanie styczniowe, 1863 r. => TAK\nD: powstanie wielkopolskie, 1918 r. => TAK\n"
+                       "E: powstanie krakowskie, 1846 r. => NIE\nOdpowiedź: A,B,C,D", "B,C,E"),
+    (YEAR_MULTI_Q, "A: Okrągły Stół, luty-kwiecień 1989 r. => TAK\nB: wybory 4 czerwca 1989 r. => TAK\n"
+                   "C: stan wojenny, 13 grudnia 1981 r. => NIE\nD: rząd Mazowieckiego, wrzesień 1989 r. => TAK\n"
+                   "E: porozumienia sierpniowe, 1980 r. => TAK\nOdpowiedź: A,B,D,E", "A,B,D"),
+    (JAG_MULTI_Q, "A: Kazimierz Jagiellończyk, syn Jagiełły => TAK\nB: Stefan Batory, książę siedmiogrodzki => NIE\n"
+                  "C: Zygmunt August, ostatni Jagiellon => TAK\nD: Władysław Warneńczyk, syn Jagiełły => TAK\n"
+                  "E: Henryk Walezy, z dynastii Walezjuszy => NIE\nOdpowiedź: A,C,D", "A,C,D"),
+    (DATE_MATCH_Q, "Chrzest Polski: 966\nBitwa pod Grunwaldem: 1410\nUnia lubelska: 1569\nBitwy pod Wiedniem: 1683\n"
+                   "Odpowiedź: chrzest Polski=D; bitwa pod Grunwaldem=C; unia lubelska=C; bitwa pod Wiedniem=A",
+     "chrzest Polski=B; bitwa pod Grunwaldem=D; unia lubelska=C; bitwa pod Wiedniem=A"),
+]
+
 TYPE_CASES = [(ORDER_Q, "order"), (MATCH_Q, "matching"), (TF_Q, "tflist"), (SINGLE_Q, "single"),
               (MULTI_Q, "multi"), (NUM_Q, "numeric"), (SHORT_Q, "short")]
 
@@ -99,7 +127,14 @@ def main():
             failures += 1
             print(f"FAIL format example kept: {cleaned[-80:]!r}")
 
-    for text, raw, expected in CASES + REAL_CASES:
+    for stem, expected in (("które wybuchły w XIX wieku", (1801, 1900)), ("w Polsce w 1989 r.", (1989, 1989)),
+                           ("z dynastii Jagiellonów", None), ("w V w. p.n.e.", None)):
+        got = normalize._time_criterion(stem)
+        if got != expected:
+            failures += 1
+            print(f"FAIL time criterion {stem!r}: {got}")
+
+    for text, raw, expected in CASES + REAL_CASES + V3_CASES:
         q = qtypes.parse(text)
         got = normalize.normalize(q, raw)
         if got != expected:
@@ -114,7 +149,7 @@ def main():
             failures += 1
             print(f"FAIL vote {qtype}: {answers} -> {got!r}, expected {expected!r}")
 
-    total = len(TYPE_CASES) + 3 + 2 + len(CASES) + len(REAL_CASES) + len(votes)
+    total = len(TYPE_CASES) + 3 + 2 + 4 + len(CASES) + len(REAL_CASES) + len(V3_CASES) + len(votes)
     print(f"{total - failures}/{total} checks passed")
     sys.exit(1 if failures else 0)
 

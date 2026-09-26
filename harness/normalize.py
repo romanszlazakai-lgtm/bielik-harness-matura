@@ -55,9 +55,50 @@ def single(q, raw):
     return found[-1] if found else ""
 
 
+def _time_criterion(stem):
+    """'w XIX wieku' -> (1801, 1900); 'w 1989 r.' -> (1989, 1989); otherwise None."""
+    m = re.search(r"\bw(?:e)?\s+([IVXL]+)\s*(?:w\.|wiek\w*)", stem)
+    if m and "p.n.e" not in stem[m.end():m.end() + 12]:
+        c = _roman(m.group(1))
+        return c * 100 - 99, c * 100
+    m = re.search(r"\bw\s+(?:roku\s+)?(\d{3,4})\s*(?:r\.|roku)", stem)
+    if m:
+        return int(m.group(1)), int(m.group(1))
+    return None
+
+
+def _multi_by_lines(q, raw):
+    """v3 lines 'A: fact => TAK'. A time criterion in the question is checked in code, not by the model.
+
+    A small model recalls 'insurekcja kościuszkowska, 1794' reliably but still calls it 19th century;
+    comparing the year it wrote with the century asked for is exact.
+    """
+    window = _time_criterion(q.stem)
+    verdicts = {}
+    for line in _reasoning(raw).splitlines():
+        m = re.match(r"\s*([A-H])\s*[:)]\s*(.*)$", line)
+        if not m or m.group(1) not in q.options or m.group(1) in verdicts:
+            continue
+        body = m.group(2)
+        said = re.findall(r"\b(TAK|NIE)\b", body, re.I)
+        fact = body.split("=>")[0]
+        year = _date_value(fact) if window else None
+        if year is not None and year > 0:
+            verdicts[m.group(1)] = window[0] <= year <= window[1]
+        elif said:
+            verdicts[m.group(1)] = said[-1].upper() == "TAK"
+    if len(verdicts) >= max(2, len(q.options) - 1):
+        chosen = sorted(l for l, v in verdicts.items() if v)
+        return ",".join(chosen)
+    return ""
+
+
 def multi(q, raw):
     allowed = q.letters
-    # Preferred: one verdict per option ("A: TAK", "B: NIE") written before the answer line.
+    by_lines = _multi_by_lines(q, raw)
+    if by_lines:
+        return by_lines
+    # One verdict per option right after the letter ("A: TAK", "B: NIE"), as v2 asks.
     verdicts = dict(re.findall(rf"(?<![{_WORD}])([A-H])\s*[:)\-]\s*(TAK|NIE)\b", _reasoning(raw), re.I))
     if len(verdicts) >= max(2, len(allowed) - 1):
         chosen = sorted(l for l, v in verdicts.items() if v.upper() == "TAK" and l in allowed)
@@ -70,8 +111,31 @@ def multi(q, raw):
     return ""
 
 
+_TF_END = re.compile(rf"(?<![{_WORD}])(P|F|prawda|prawdziwe|fałsz|fałszywe|falsz)(?![{_WORD}])[\W_]*$", re.I)
+
+
+def _tf_by_lines(q, raw):
+    """v3 lines '1. fact => P': the verdict closes each numbered line."""
+    n = len(q.statements)
+    verdicts = {}
+    for line in _reasoning(raw).splitlines():
+        m = re.match(r"\s*\(?(\d{1,2})\)?[.):]\s*(.*)$", line)
+        if not m:
+            continue
+        v = _TF_END.search(m.group(2))
+        idx = int(m.group(1))
+        if v and idx not in verdicts:
+            verdicts[idx] = "P" if v.group(1).lower() in ("p", "prawda", "prawdziwe") else "F"
+    if n and all(i in verdicts for i in range(1, n + 1)):
+        return ",".join(verdicts[i] for i in range(1, n + 1))
+    return ""
+
+
 def tflist(q, raw):
     n = len(q.statements)
+    by_lines = _tf_by_lines(q, raw)
+    if by_lines:
+        return by_lines
     for chunk in (answer_tail(raw), _last_line(raw), raw):
         tokens = []
         for t in _TF_TOKEN.findall(chunk):
@@ -123,9 +187,38 @@ def _match_by_content(q, raw):
     return result
 
 
+def _match_by_lines(q, raw):
+    """v3 lines 'element => category text'. Tolerates inflected names ('Bitwy pod Wiedniem')."""
+    result = {}
+    for line in _reasoning(raw).splitlines():
+        sep = "=>" if "=>" in line else (":" if ":" in line else None)
+        if not sep:
+            continue
+        left, right = line.split(sep, 1)
+        left_stems = _stems(left)
+        share, element = max(((len(left_stems & _stems(e)) / max(len(_stems(e)), 1), e) for e in q.elements),
+                             default=(0, None))
+        if share < 0.5 or element in result:
+            continue
+        right_stems = _stems(right)
+        scores = {l: len(right_stems & _stems(t)) for l, t in q.options.items()}
+        best = max(scores.values(), default=0)
+        winners = [l for l, s in scores.items() if s == best]
+        if best > 0 and len(winners) == 1:
+            result[element] = winners[0]
+        else:
+            m = re.search(rf"(?<![{_WORD}])([A-H])\)", right)  # "C) Jan Matejko"
+            if m and m.group(1) in q.options:
+                result[element] = m.group(1)
+    return result
+
+
 def matching(q, raw):
     allowed = q.letters
     tail = answer_tail(raw) or raw
+    by_lines = _match_by_lines(q, raw)
+    if len(by_lines) == len(q.elements):
+        return "; ".join(f"{e}={by_lines[e]}" for e in q.elements)
     by_content = _match_by_content(q, raw)
     if len(by_content) == len(q.elements):
         return "; ".join(f"{e}={by_content[e]}" for e in q.elements)

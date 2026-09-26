@@ -9,7 +9,7 @@
     "exam": "2022-03",
     "task": "9.1",
     "why": "true/false list checked statement by statement against the source",
-    "reasoning": "(1) Rokoszanin to Jerzy Lubomirski, który wystąpił przeciw Janowi Kazimierzowi, nie Zygmuntowi III: fałsz. (2) Elekcja z 1669 r. odbyła się po pokoju oliwskim z 1660 r.: prawda. (3) Elekcję spowodowała abdykacja Jana Kazimierza, a nie śmierć władcy: fałsz."
+    "reasoning": "1. Rokoszanin to Jerzy Lubomirski, który wystąpił przeciw Janowi Kazimierzowi, nie Zygmuntowi III => F\n2. Elekcja z 1669 r. odbyła się po pokoju oliwskim z 1660 r. => P\n3. Elekcję spowodowała abdykacja Jana Kazimierza, a nie śmierć władcy => F"
   },
   {
     "exam": "2022-03",

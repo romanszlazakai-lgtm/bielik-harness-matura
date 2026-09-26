@@ -24,6 +24,29 @@ FORMAT = {
     "open": "Odpowiedz rzeczowo w 2-4 zdaniach, podając fakty, daty i nazwy.",
 }
 
+# v3: one line per item with the key fact first and the verdict last, so the model judges items
+# one by one and the parser can read each verdict separately.
+FORMAT_V3 = {
+    "tflist": "Oceń każde stwierdzenie osobno i dokładnie w brzmieniu z pytania; nie poprawiaj go. Napisz po jednej linii na stwierdzenie: numer. kluczowy fakt => P albo F. W ostatniej linii napisz: Odpowiedź: <P lub F po kolei, oddzielone przecinkami>",
+    "multi": "Sprawdź każdą opcję osobno. Napisz po jednej linii na opcję: litera: kluczowy fakt, najlepiej z datą => TAK albo NIE. W ostatniej linii napisz: Odpowiedź: <litery opcji z TAK, oddzielone przecinkami>",
+    "matching": "Napisz po jednej linii na element: element => pełna treść pasującej kategorii. W ostatniej linii napisz: Odpowiedź: element=litera; element=litera; ...",
+}
+EXAMPLES_V3 = {
+    "tflist": (
+        "Oceń prawdziwość stwierdzeń. (1) Mikołaj Kopernik opisał teorię heliocentryczną w dziele „O obrotach sfer niebieskich”. (2) Reformację w 1517 r. zapoczątkował Jan Kalwin. Odpowiedz literami P/F w kolejności.",
+        "1. Kopernik wydał „O obrotach sfer niebieskich” w 1543 r. => P\n2. W 1517 r. wystąpił Marcin Luter, nie Jan Kalwin => F\nOdpowiedź: P,F",
+    ),
+    "multi": (
+        "Zaznacz wszystkie miasta, które były stolicami cesarstwa rzymskiego lub bizantyńskiego. (Może być kilka poprawnych, podaj wszystkie litery.)\nA) Rzym\nB) Konstantynopol\nC) Aleksandria\nD) Rawenna",
+        "A: Rzym, stolica cesarstwa => TAK\nB: Konstantynopol, stolica od 330 r. => TAK\nC: Aleksandria nigdy nie była stolicą cesarstwa => NIE\nD: Rawenna, stolica zachodu od 402 r. => TAK\nOdpowiedź: A,B,D",
+    ),
+    "matching": (
+        "Przyporządkuj postaciom epoki. Elementy: Perykles, Karol Wielki. Kategorie: A) średniowiecze; B) starożytność. Odpowiedz w formacie element=litera, np. Perykles=?; Karol Wielki=?.",
+        "Perykles => starożytność (V w. p.n.e.)\nKarol Wielki => średniowiecze (VIII-IX w.)\nOdpowiedź: Perykles=B; Karol Wielki=A",
+    ),
+}
+V3_MAX_TOKENS = 240  # one line per item needs more room than a bare answer
+
 REASON = "Najpierw w 1-2 krótkich zdaniach przypomnij kluczowe fakty (daty, postacie, miejsca)."
 NO_REASON = "Nie uzasadniaj. Napisz tylko linię z odpowiedzią."
 
@@ -87,19 +110,55 @@ def _context_block(passages):
     return "\n".join(lines) + "\n\n"
 
 
+def uses_item_lines(q):
+    """v3 answers list questions one line per item, with a fact hint for every item."""
+    return config.PROMPT_VERSION == "v3" and q.qtype in FORMAT_V3
+
+
+def max_tokens(q):
+    return max(config.MAX_TOKENS, V3_MAX_TOKENS) if uses_item_lines(q) else config.MAX_TOKENS
+
+
+def _items(q):
+    """(label, retrieval query) for each statement, option or element of a list question."""
+    if q.qtype == "tflist":
+        return [(f"{i}.", s, "") for i, s in enumerate(q.statements, 1)]
+    if q.qtype == "multi":
+        # The criterion lives in the stem ("w XIX wieku", "z dynastii Jagiellonów"): it breaks ties.
+        return [(f"{l}:", t, q.stem) for l, t in q.options.items()]
+    if q.qtype == "matching":
+        return [(f"{e} =>", e, "") for e in q.elements]
+    return []
+
+
+def _hints_block(q):
+    from .retrieval import item_hint  # imported here: retrieval loads the index lazily
+    lines = [f"{label} {hint}" for label, text, context in _items(q)
+             for hint in [item_hint(text, context)] if hint]
+    if not lines:
+        return ""
+    return "Fakty do poszczególnych pozycji (z encyklopedii, mogą być niepełne):\n" + "\n".join(lines) + "\n\n"
+
+
 def build_messages(q, passages):
     style = REASON if config.REASONING else NO_REASON
     if q.qtype in ("open",):
         style = ""
     instruction = f"{style} {FORMAT[q.qtype]}".strip()
     ex_q, ex_a = EXAMPLES[q.qtype]
+    hints = ""
+    if uses_item_lines(q):
+        instruction = FORMAT_V3[q.qtype]
+        ex_q, ex_a = EXAMPLES_V3[q.qtype]
+        hints = _hints_block(q)
+        passages = passages[:2]  # item hints take the room of the third passage
     image_note = "\n(Pytanie odnosi się do obrazu, którego nie widzisz. Wykorzystaj opis i wiedzę.)" if q.has_image else ""
     return [
         {"role": "system", "content": SYSTEM},
         *cke_shots(),
         {"role": "user", "content": f"Pytanie: {ex_q}\n\n{instruction}"},
         {"role": "assistant", "content": _with_style(q.qtype, ex_a)},
-        {"role": "user", "content": f"{_context_block(passages)}Pytanie: {_without_format_examples(q.text)}{image_note}\n\n{instruction}"},
+        {"role": "user", "content": f"{_context_block(passages)}{hints}Pytanie: {_without_format_examples(q.text)}{image_note}\n\n{instruction}"},
     ]
 
 
@@ -121,7 +180,7 @@ def cke_shots():
         path = config.CKE_DIR / "fewshot.json"
         if path.exists():
             for shot in json.loads(path.read_text(encoding="utf-8")):
-                instruction = f"{REASON} {FORMAT[shot['type']]}"
+                instruction = FORMAT_V3.get(shot["type"]) or f"{REASON} {FORMAT[shot['type']]}"
                 _CKE_SHOTS += [
                     {"role": "user", "content": f"Pytanie: {_without_format_examples(shot['question'])}\n\n{instruction}"},
                     {"role": "assistant", "content": shot["answer"]},

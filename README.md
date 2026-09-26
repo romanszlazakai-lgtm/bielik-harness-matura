@@ -47,7 +47,9 @@ expected answer; "lenient" applies this harness's normalizer to the bare model's
 | Bielik 1.5B Q8_0 (1.70 GB) | 3/46 (6.5%) | 18/46 (39.1%) | 29/46 (63.0%) | 34/46 (73.9%) |
 | Bielik 1.5B Q4_K_M (0.97 GB) | 3/46 (6.5%) | 16/46 (34.8%) | 28/46 (60.9%) | 28/46 (60.9%) |
 
-Harness v2 run (1 answer per question): Q4_K_M 31/46 (67.4%), 32.3 s per question.
+Harness v2 run (1 answer per question): Q8_0 35/46 (76.1%), 65.0 s per question; Q4_K_M 31/46 (67.4%), 32.3 s per question.
+
+Held-out check on real CKE questions (10 closed items of the May 2023 paper, kept out of every index), Q4_K_M: bare model 1/10 strict (2/10 lenient), harness v2 4/10.
 
 Seconds per question on the laptop CPU: bare model 29.7 (Q8) and 18.4 (Q4); harness v1 with 3 votes
 98.2 (Q8) and 71.1 (Q4).
@@ -90,6 +92,13 @@ PROMPT_VERSION=v3 USE_CKE=1 python scripts/run_dev.py --mode harness --data data
   passage, and most of the CKE task's own instruction occurs in the question. On the 2023 paper
   this finds the right subtask for 10 of 10 closed items. On the 46 dev questions, which repeat no
   CKE task, it fires 0 times.
+- **List questions in v3** (true/false, multi, matching) are answered one line per item:
+  `1. fact => P`, `A: fact with a date => TAK`, `element => category text`. Every item also
+  gets its own fact hint from the knowledge base, because a single search for the whole question
+  only covers its dominant topic. The parser reads each line's verdict, maps matching lines by
+  word stems (so an inflected name such as "Bitwy pod Wiedniem" still matches), and checks a time
+  criterion in the question ("w XIX wieku", "w 1989 r.") against the year the model wrote
+  instead of trusting the model's TAK/NIE.
 - **`--holdout`** keeps one exam out of the index and writes its closed tasks to
   `data/cke/heldout.jsonl` in the dev-set format, for an honest check on real CKE questions.
 
