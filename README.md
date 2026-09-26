@@ -21,7 +21,7 @@ exam script -> harness server (looks like a model: OpenAI or Ollama API)
                  2. retrieve 3 passages from the local knowledge base with BM25 (no extra model):
                     the best cheat-sheet passage first, then Wikipedia, one passage per article
                  3. prompt with one worked example for that type, short fact recall first
-                 4. sample up to 3 answers (greedy + 2 at temperature 0.7), stop early if they agree
+                 4. one greedy answer by default (VOTES=3 adds 2 samples at temperature 0.7 and votes)
                  5. normalize each answer to the exact format the grader expects
                  6. vote: whole-answer majority, or per position for P/F lists and matchings
              -> Bielik 1.5B
@@ -42,10 +42,25 @@ and a closed question is never left blank.
 Dev set: 46 questions, see `data/dev/README.md`. "Strict" means the reply must be exactly the
 expected answer; "lenient" applies this harness's normalizer to the bare model's reply.
 
-| Model | Bare, strict | Bare, lenient | With harness | Seconds per question |
+| Model | Bare, strict | Bare, lenient | Harness v1 (3 votes) | Harness v1 replies, v2 normalizer |
 |---|---|---|---|---|
-| Bielik 1.5B Q8_0 (1.70 GB) | 3/46 (6.5%) | 18/46 (39.1%) | pending | pending |
+| Bielik 1.5B Q8_0 (1.70 GB) | 3/46 (6.5%) | 18/46 (39.1%) | 29/46 (63.0%) | 34/46 (73.9%) |
 | Bielik 1.5B Q4_K_M (0.97 GB) | pending | pending | pending | pending |
+
+On the laptop CPU a question takes 70-100 s (prompt reading runs at about 7.5 tokens/s), so the
+exam should run on a GPU; the model and harness are unchanged either way.
+
+What v2 changed, after reading the v1 replies (the model often knew the facts but assembled them
+wrongly):
+
+- **order:** the model writes a year or century per letter and the code sorts them.
+- **matching:** each element is matched to the category whose text the model wrote next to it.
+- **multi:** one TAK/NIE verdict per option instead of a bare list of letters.
+- **tflist and order:** answer-format examples such as "np. P,F,P" are removed from the question,
+  because the small model copied them as its answer.
+- **numeric:** year differences are never negative.
+- **voting:** off by default. Across the whole v1 run it fixed one answer and broke another, while
+  doubling the time.
 
 ## Reproduce
 

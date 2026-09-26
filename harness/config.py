@@ -15,7 +15,7 @@ LLM_MODEL = _env("LLM_MODEL", "bielik-1.5b-v3.0-instruct")
 LLM_TIMEOUT = float(_env("LLM_TIMEOUT", "180"))
 
 # Harness behaviour.
-VOTES = int(_env("VOTES", "3"))                      # answers sampled per question
+VOTES = int(_env("VOTES", "1"))                      # answers per question; 3 = greedy + 2 samples, then vote
 VOTE_TEMPERATURE = float(_env("VOTE_TEMPERATURE", "0.7"))
 REASONING = _env("REASONING", "1") == "1"            # short fact recall before the answer
 MAX_TOKENS = int(_env("MAX_TOKENS", "160"))

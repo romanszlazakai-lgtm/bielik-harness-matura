@@ -2,6 +2,8 @@
 
 Examples are deliberately different from the dev set questions, so the dev score is not inflated.
 """
+import re
+
 from . import config
 
 SYSTEM = (
@@ -12,10 +14,10 @@ SYSTEM = (
 
 FORMAT = {
     "single": "W ostatniej linii napisz: Odpowiedź: <jedna litera>",
-    "multi": "W ostatniej linii napisz: Odpowiedź: <wszystkie poprawne litery, oddzielone przecinkami>",
-    "tflist": "Oceń każde stwierdzenie osobno. W ostatniej linii napisz: Odpowiedź: <P lub F dla każdego stwierdzenia po kolei, oddzielone przecinkami>",
-    "matching": "W ostatniej linii napisz: Odpowiedź: element=litera; element=litera; ...",
-    "order": "Ustal datę każdego wydarzenia, potem ułóż je od najwcześniejszego. W ostatniej linii napisz: Odpowiedź: <litery oddzielone przecinkami>",
+    "multi": "Dla każdej opcji napisz w osobnej linii: litera: TAK lub NIE, z bardzo krótkim powodem. W ostatniej linii napisz: Odpowiedź: <litery opcji z TAK, oddzielone przecinkami>",
+    "tflist": "Oceń każde stwierdzenie osobno, dokładnie w brzmieniu z pytania, i go nie poprawiaj. W ostatniej linii napisz: Odpowiedź: <P lub F dla każdego stwierdzenia po kolei, oddzielone przecinkami>",
+    "matching": "Dla każdego elementu napisz w osobnej linii: element: treść pasującej kategorii. W ostatniej linii napisz: Odpowiedź: element=litera; element=litera; ...",
+    "order": "Dla każdej litery podaj rok lub wiek (np. A: 1410 r.). W ostatniej linii napisz: Odpowiedź: <litery od najwcześniejszego, oddzielone przecinkami>",
     "numeric": "Zapisz obliczenie w linii WYRAŻENIE: <działanie, np. 1525-1410>. W ostatniej linii napisz: Odpowiedź: <sama liczba>",
     "short": "Odpowiedz jak najkrócej, jednym do trzech słów. W ostatniej linii napisz: Odpowiedź: <odpowiedź>",
     "open": "Odpowiedz rzeczowo w 2-4 zdaniach, podając fakty, daty i nazwy.",
@@ -31,19 +33,19 @@ EXAMPLES = {
     ),
     "multi": (
         "Zaznacz wszystkie miasta, które były stolicami cesarstwa rzymskiego lub bizantyńskiego. (Może być kilka poprawnych, podaj wszystkie litery.)\nA) Rzym\nB) Konstantynopol\nC) Aleksandria\nD) Rawenna",
-        "Stolicami były Rzym, Konstantynopol (od 330 r.) i Rawenna (od 402 r.). Aleksandria nie była stolicą cesarstwa.\nOdpowiedź: A,B,D",
+        "A: TAK (stolica cesarstwa)\nB: TAK (stolica od 330 r.)\nC: NIE (nie była stolicą cesarstwa)\nD: TAK (stolica zachodu od 402 r.)\nOdpowiedź: A,B,D",
     ),
     "tflist": (
-        "Oceń prawdziwość stwierdzeń. (1) Mikołaj Kopernik opisał teorię heliocentryczną w dziele „O obrotach sfer niebieskich”. (2) Reformację w 1517 r. zapoczątkował Jan Kalwin. Odpowiedz literami P/F w kolejności, np. P,F.",
+        "Oceń prawdziwość stwierdzeń. (1) Mikołaj Kopernik opisał teorię heliocentryczną w dziele „O obrotach sfer niebieskich”. (2) Reformację w 1517 r. zapoczątkował Jan Kalwin. Odpowiedz literami P/F w kolejności.",
         "(1) Kopernik, dzieło z 1543 r.: prawda. (2) W 1517 r. wystąpił Marcin Luter, nie Kalwin: fałsz.\nOdpowiedź: P,F",
     ),
     "matching": (
         "Przyporządkuj postaciom epoki. Elementy: Perykles, Karol Wielki. Kategorie: A) średniowiecze; B) starożytność. Odpowiedz w formacie element=litera, np. Perykles=?; Karol Wielki=?.",
-        "Perykles żył w V w. p.n.e., Karol Wielki na przełomie VIII i IX w.\nOdpowiedź: Perykles=B; Karol Wielki=A",
+        "Perykles: starożytność (V w. p.n.e.)\nKarol Wielki: średniowiecze (VIII-IX w.)\nOdpowiedź: Perykles=B; Karol Wielki=A",
     ),
     "order": (
-        "Uporządkuj wydarzenia chronologicznie. A) bitwa pod Cedynią; B) chrzest Mieszka I; C) zjazd gnieźnieński. Podaj litery w kolejności, np. C,A,B.",
-        "B: 966 r., A: 972 r., C: 1000 r.\nOdpowiedź: B,A,C",
+        "Uporządkuj wydarzenia chronologicznie. A) bitwa pod Cedynią; B) chrzest Mieszka I; C) zjazd gnieźnieński. Podaj litery w kolejności.",
+        "A: 972 r.\nB: 966 r.\nC: 1000 r.\nOdpowiedź: B,A,C",
     ),
     "numeric": (
         "Oblicz, ile lat minęło od bitwy pod Grunwaldem (1410) do hołdu pruskiego (1525). Podaj samą liczbę.",
@@ -67,6 +69,14 @@ def _with_style(qtype, answer):
     return answer.splitlines()[-1]
 
 
+_FORMAT_EXAMPLE = re.compile(r",?\s*np\.\s*(?:[A-H](?:\s*,\s*[A-H])+|[PF](?:\s*,\s*[PF])+)\.?")
+
+
+def _without_format_examples(text):
+    """Drop 'np. C,A,D,B' / 'np. P,F,P' from the question: small models copy them as the answer."""
+    return _FORMAT_EXAMPLE.sub(".", text).replace("..", ".")
+
+
 def _context_block(passages):
     if not passages:
         return ""
@@ -87,5 +97,5 @@ def build_messages(q, passages):
         {"role": "system", "content": SYSTEM},
         {"role": "user", "content": f"Pytanie: {ex_q}\n\n{instruction}"},
         {"role": "assistant", "content": _with_style(q.qtype, ex_a)},
-        {"role": "user", "content": f"{_context_block(passages)}Pytanie: {q.text}{image_note}\n\n{instruction}"},
+        {"role": "user", "content": f"{_context_block(passages)}Pytanie: {_without_format_examples(q.text)}{image_note}\n\n{instruction}"},
     ]

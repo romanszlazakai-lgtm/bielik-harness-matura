@@ -40,6 +40,35 @@ CASES = [
     (SHORT_Q, "To proces krasowienia.\nOdpowiedź: krasowienie.", "krasowienie"),
 ]
 
+HIST_ORDER_Q = ("Uporządkuj wydarzenia chronologicznie od najwcześniejszego. A) hołd pruski; B) chrzest Litwy; "
+                "C) potop szwedzki; D) uchwalenie Konstytucji 3 maja. Podaj litery w kolejności, np. C,A,D,B.")
+WAR_ORDER_Q = ("Uporządkuj wydarzenia chronologicznie od najwcześniejszego. A) wybuch II wojny światowej; "
+               "B) podpisanie traktatu wersalskiego; C) przewrót majowy; D) plebiscyt na Górnym Śląsku. "
+               "Podaj litery w kolejności, np. C,A,D,B.")
+STYLE_ORDER_Q = ("Uporządkuj style w sztuce od najwcześniejszego. A) barok; B) styl romański; C) renesans; "
+                 "D) gotyk. Podaj litery w kolejności, np. C,A,D,B.")
+DATE_MATCH_Q = ("Przyporządkuj wydarzeniom daty. Elementy: chrzest Polski, bitwa pod Grunwaldem, unia lubelska, "
+                "bitwa pod Wiedniem. Kategorie: A) 1683; B) 966; C) 1569; D) 1410. Odpowiedz w formacie "
+                "element=litera, np. chrzest Polski=?; bitwa pod Grunwaldem=?; unia lubelska=?; bitwa pod Wiedniem=?.")
+JAG_MULTI_Q = ("Zaznacz wszystkich władców z dynastii Jagiellonów. (Może być kilka poprawnych, podaj wszystkie litery.)"
+               "\nA) Kazimierz Jagiellończyk\nB) Stefan Batory\nC) Zygmunt August\nD) Władysław Warneńczyk\nE) Henryk Walezy")
+YEARS_Q = ("Oblicz, ile lat minęło od uchwalenia Konstytucji 3 maja (1791) do odzyskania niepodległości "
+           "przez Polskę (1918). Podaj samą liczbę.")
+
+# Real replies from the first dev run, where the model knew the facts but assembled them wrongly.
+REAL_CASES = [
+    (HIST_ORDER_Q, "A: 1526 r., B: 966 r., C: 1655 r., D: 1791 r.\nOdpowiedź: A,B,C,D", "B,A,C,D"),
+    (WAR_ORDER_Q, "A: 1 września 1939 r., B: 28 czerwca 1919 r., C: 15 maja 1926 r., D: 20 marca 1921 r.\n"
+                  "Odpowiedź: C,A,D,B", "B,D,C,A"),
+    (STYLE_ORDER_Q, "A: XVII w.\nB: XI w.\nC: XV w.\nD: XIII w.\nOdpowiedź: A,B,C,D", "B,D,C,A"),
+    (DATE_MATCH_Q, "Chrzest Polski miał miejsce w 966 r., bitwa pod Grunwaldem odbyła się 15 lipca 1410 r., "
+                   "unia lubelska została zawarta w 1569 r., a bitwa pod Wiedniem miała miejsce 12 września 1683 r.\n"
+                   "Odpowiedź: chrzest Polski=B; bitwa pod Grunwaldem=A; unia lubelska=C; bitwa pod Wiedniem=D",
+     "chrzest Polski=B; bitwa pod Grunwaldem=D; unia lubelska=C; bitwa pod Wiedniem=A"),
+    (JAG_MULTI_Q, "A: TAK (Jagiellon)\nB: NIE (Batory)\nC: TAK\nD: TAK\nE: NIE\nOdpowiedź: A,B,C,D", "A,C,D"),
+    (YEARS_Q, "WYRAŻENIE: 1791-1918\nOdpowiedź: 207", "127"),
+]
+
 TYPE_CASES = [(ORDER_Q, "order"), (MATCH_Q, "matching"), (TF_Q, "tflist"), (SINGLE_Q, "single"),
               (MULTI_Q, "multi"), (NUM_Q, "numeric"), (SHORT_Q, "short")]
 
@@ -63,7 +92,14 @@ def main():
         failures += 1
         print("FAIL tflist statements")
 
-    for text, raw, expected in CASES:
+    from harness.prompts import _without_format_examples
+    for text in (ORDER_Q, TF_Q):
+        cleaned = _without_format_examples(text)
+        if "C,A,D,B" in cleaned or "P,F,P" in cleaned:
+            failures += 1
+            print(f"FAIL format example kept: {cleaned[-80:]!r}")
+
+    for text, raw, expected in CASES + REAL_CASES:
         q = qtypes.parse(text)
         got = normalize.normalize(q, raw)
         if got != expected:
@@ -78,7 +114,7 @@ def main():
             failures += 1
             print(f"FAIL vote {qtype}: {answers} -> {got!r}, expected {expected!r}")
 
-    total = len(TYPE_CASES) + 3 + len(CASES) + len(votes)
+    total = len(TYPE_CASES) + 3 + 2 + len(CASES) + len(REAL_CASES) + len(votes)
     print(f"{total - failures}/{total} checks passed")
     sys.exit(1 if failures else 0)
 

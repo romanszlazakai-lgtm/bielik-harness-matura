@@ -57,6 +57,12 @@ def single(q, raw):
 
 def multi(q, raw):
     allowed = q.letters
+    # Preferred: one verdict per option ("A: TAK", "B: NIE") written before the answer line.
+    verdicts = dict(re.findall(rf"(?<![{_WORD}])([A-H])\s*[:)\-]\s*(TAK|NIE)\b", _reasoning(raw), re.I))
+    if len(verdicts) >= max(2, len(allowed) - 1):
+        chosen = sorted(l for l, v in verdicts.items() if v.upper() == "TAK" and l in allowed)
+        if chosen:
+            return ",".join(chosen)
     for chunk in (answer_tail(raw), _last_line(raw)):
         found = sorted(set(_letters_in(chunk, allowed)))
         if found:
@@ -79,9 +85,50 @@ def tflist(q, raw):
     return ""
 
 
+def _reasoning(raw):
+    """Model text before the final 'Odpowiedź:' line."""
+    marks = list(_ANSWER_MARK.finditer(raw))
+    return raw[:marks[-1].start()] if marks else raw
+
+
+def _stems(text):
+    return {t if t.isdigit() else t[:6] for t in re.findall(r"\d+|[^\W\d_]{3,}", text.lower())}
+
+
+def _match_by_content(q, raw):
+    """Map each element to the category whose text the model wrote next to it.
+
+    Small models often recall the right fact ('Grunwald 1410') but pick the wrong letter;
+    matching on the category text instead of the letter recovers those answers.
+    """
+    text = _reasoning(raw)
+    low = text.lower()
+    spots = []
+    for element in q.elements:
+        pos = low.find(element.lower())
+        if pos < 0:
+            return {}
+        spots.append((pos, element))
+    spots.sort()
+    result = {}
+    for i, (pos, element) in enumerate(spots):
+        end = spots[i + 1][0] if i + 1 < len(spots) else len(text)
+        window = _stems(text[pos + len(element):end])
+        scores = {l: len(window & _stems(t)) for l, t in q.options.items()}
+        best = max(scores.values(), default=0)
+        winners = [l for l, s in scores.items() if s == best]
+        if best == 0 or len(winners) > 1:
+            return {}
+        result[element] = winners[0]
+    return result
+
+
 def matching(q, raw):
     allowed = q.letters
     tail = answer_tail(raw) or raw
+    by_content = _match_by_content(q, raw)
+    if len(by_content) == len(q.elements):
+        return "; ".join(f"{e}={by_content[e]}" for e in q.elements)
     result = {}
     for element in q.elements:
         pattern = re.escape(element) + r"\s*(?:=|:|->|→|-|–)\s*\(?([A-H])(?![" + _WORD + "])"
@@ -105,8 +152,50 @@ def matching(q, raw):
     return "; ".join(f"{e}={result[e]}" for e in q.elements)
 
 
+_ROMAN = {"I": 1, "V": 5, "X": 10, "L": 50}
+
+
+def _roman(s):
+    total = 0
+    for a, b in zip(s, s[1:] + " "):
+        v = _ROMAN[a]
+        total += -v if b in _ROMAN and _ROMAN[b] > v else v
+    return total
+
+
+def _date_value(segment):
+    """First year in a text segment ('1410 r.', '44 p.n.e.'), else a century ('XV w.')."""
+    for m in re.finditer(r"(\d{1,4})\s*(?:r\.|roku|rok)?\s*(p\.\s*n\.\s*e\.)?", segment):
+        if len(m.group(1)) >= 3 or m.group(2):  # skip day numbers such as "1 września"
+            year = int(m.group(1))
+            return -year if m.group(2) else year
+    m = re.search(r"\b([IVXL]+)\s*(?:w\.|wiek)(\s*p\.\s*n\.\s*e\.)?", segment)
+    if m:
+        mid = _roman(m.group(1)) * 100 - 50
+        return -mid if m.group(2) else mid
+    return None
+
+
+def _order_by_dates(q, raw):
+    """Sort by the dates the model assigned to each letter ('A: 1526 r., B: 966 r.')."""
+    text = _reasoning(raw)
+    marks = [m for m in re.finditer(rf"(?<![{_WORD}])([A-H])\s*[:)]", text) if m.group(1) in q.options]
+    dates = {}
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+        value = _date_value(text[m.end():end])
+        if value is not None and m.group(1) not in dates:
+            dates[m.group(1)] = value
+    if set(dates) != set(q.options) or len(set(dates.values())) < 2:
+        return ""
+    return ",".join(sorted(dates, key=lambda l: (dates[l], l)))
+
+
 def order(q, raw):
     allowed = q.letters
+    by_dates = _order_by_dates(q, raw)
+    if by_dates:
+        return by_dates
     for chunk in (answer_tail(raw), _last_line(raw)):
         seq = []
         for l in _letters_in(chunk, allowed):
@@ -151,7 +240,11 @@ def numeric(q, raw):
     m = re.search(r"WYRAŻENIE\s*:\s*(.+)", raw, re.I)
     if m:
         try:
-            return format_number(safe_eval(m.group(1).split("=")[0]))
+            value = safe_eval(m.group(1).split("=")[0])
+            # "How many years passed" is never negative, whichever way round the model subtracted.
+            if value < 0 and re.search(r"\bile\b|minęł|upłynęł|trwał", q.text, re.I):
+                value = -value
+            return format_number(value)
         except (ValueError, SyntaxError, ZeroDivisionError):
             pass
     for chunk, pick in ((answer_tail(raw), 0), (_last_line(raw), -1), (raw, -1)):
