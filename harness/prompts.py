@@ -173,7 +173,7 @@ def cke_shots():
     question, they are read once and then served from the model server's prompt cache.
     """
     global _CKE_SHOTS
-    if config.PROMPT_VERSION != "v3":
+    if config.PROMPT_VERSION != "v3" or not config.CKE_SHOTS:
         return []
     if _CKE_SHOTS is None:
         _CKE_SHOTS = []
