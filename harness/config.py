@@ -12,7 +12,7 @@ def _env(name, default):
 # Model endpoint (OpenAI-compatible). LM Studio serves on port 1234 by default.
 LLM_BASE_URL = _env("LLM_BASE_URL", "http://localhost:1234/v1")
 LLM_MODEL = _env("LLM_MODEL", "bielik-1.5b-v3.0-instruct")
-LLM_TIMEOUT = float(_env("LLM_TIMEOUT", "180"))
+LLM_TIMEOUT = float(_env("LLM_TIMEOUT", "600"))  # long CKE sources take >3 min to read on a laptop CPU
 
 # Harness behaviour.
 VOTES = int(_env("VOTES", "1"))                      # answers per question; 3 = greedy + 2 samples, then vote
