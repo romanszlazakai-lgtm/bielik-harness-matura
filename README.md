@@ -4,9 +4,10 @@ A harness that lets a 1.5B-parameter Polish model sit the Polish history matura.
 "Maly, ale wariat" category of the Warsaw Model Trainers hackathon: the smallest model that scores
 at least 35%.
 
-- **Model:** Bielik-1.5B-v3.0-Instruct, unchanged (no fine-tuning, no adapters).
-  - Q8_0, 1.70 GB: [speakleash/Bielik-1.5B-v3.0-Instruct-GGUF](https://huggingface.co/speakleash/Bielik-1.5B-v3.0-Instruct-GGUF)
-  - Q4_K_M, 0.97 GB: [second-state/Bielik-1.5B-v3.0-Instruct-GGUF](https://huggingface.co/second-state/Bielik-1.5B-v3.0-Instruct-GGUF)
+- **Model:** Bielik-1.5B-v3.0-Instruct, unchanged (no fine-tuning, no adapters), quantised to
+  **Q4_K_M, 0.97 GB**: `Bielik-1.5B-v3.0-Instruct-Q4_K_M.gguf` from
+  [second-state/Bielik-1.5B-v3.0-Instruct-GGUF](https://huggingface.co/second-state/Bielik-1.5B-v3.0-Instruct-GGUF).
+  One model answers the whole sheet, essays included.
 - **Runs on a laptop CPU** (Intel i5-6300U, 16 GB RAM, no GPU) through LM Studio, or any
   OpenAI-compatible server such as llama.cpp.
 - **Offline during the exam.** Internet is used only once, to build the knowledge base.
@@ -39,35 +40,59 @@ and a closed question is never left blank.
 
 ## Results
 
-Dev set: 46 questions, see `data/dev/README.md`. "Strict" means the reply must be exactly the
-expected answer; "lenient" applies this harness's normalizer to the bare model's reply.
+**Final configuration:** Bielik-1.5B-v3.0-Instruct **Q4_K_M, 0.97 GB**, harness v3 (one line per
+item for list questions, item hints, CKE task lookup), one answer per question. These are the
+defaults in `harness/config.py`.
 
-| Model | Bare, strict | Bare, lenient | Harness v1 (3 votes) | Harness v1 replies, v2 normalizer |
+Two test sets. **Dev:** 46 closed questions written by the team (`data/dev/`), optimistic because
+the cheat sheet was written by the same team. **Held-out CKE:** the 10 closed items of the May
+2023 paper that fit the exam's formats, kept out of every index; the honest check. "Strict" means
+the reply must be exactly the expected answer.
+
+| Configuration | Dev (46) | Held-out CKE (10) |
+|---|---|---|
+| Bare Q4_K_M, strict | 3 (6.5%) | 1 (10%) |
+| Bare Q4_K_M, our normalizer on its replies | 16 (34.8%) | 2 (20%) |
+| Harness v1: prompts, retrieval, 3 votes | 28 (60.9%) | |
+| Harness v2: code assembles facts, no votes | 31 (67.4%) | 4 (40%) |
+| v3 with 3 CKE worked examples in every prompt | 33 (71.7%) | 2 (20%) |
+| **v3 final: list templates + item hints, no CKE examples** | **35 (76.1%)** | **4 (40%)** |
+
+**How small can the model get?** Same harness (v3 final), same sets:
+
+| Quantisation | Size | Dev (46) | Held-out CKE (10) | Verdict |
 |---|---|---|---|---|
-| Bielik 1.5B Q8_0 (1.70 GB) | 3/46 (6.5%) | 18/46 (39.1%) | 29/46 (63.0%) | 34/46 (73.9%) |
-| Bielik 1.5B Q4_K_M (0.97 GB) | 3/46 (6.5%) | 16/46 (34.8%) | 28/46 (60.9%) | 28/46 (60.9%) |
+| Q8_0 (harness v2) | 1.70 GB | 35 (76.1%) | | same accuracy, 1.8x the size |
+| **Q4_K_M** | **0.97 GB** | **35 (76.1%)** | **4 (40%)** | **chosen** |
+| Q3_K_M | 0.78 GB | 25 (54.3%) | 4 (40%), 2 lost to timeouts | weaker on every other test; essay under 300 words |
+| Q2_K | 0.61 GB | 6 of the first 18 | 0 (0%) | breaks: answers the prompt's example ("Kircholm") instead of the question |
 
-Harness v2 run (1 answer per question): Q8_0 35/46 (76.1%), 65.0 s per question; Q4_K_M 31/46 (67.4%), 32.3 s per question.
+**Essays and open answers** (Q4_K_M, final version; not auto-graded, read by the team): both test
+essays above 300 words (314 and 433), plain prose, structure kept, dates taken from the timeline;
+both "Rozstrzygnij" decisions correct after asking for facts before the verdict. Content remains
+the weak point: the 1.5B model still invents details beyond the first sentence, which is why open
+answers are cut to their first sentences.
 
-Held-out check on real CKE questions (10 closed items of the May 2023 paper, kept out of every index), Q4_K_M: bare model 1/10 strict (2/10 lenient), harness v2 4/10.
+**Scanned PDF sheets:** the May 2023 paper OCR'd as if it were a scan (36 pages, 6.8 s per page on
+the laptop): 37 of 37 tasks found, all with the same type as from the text layer.
 
-Seconds per question on the laptop CPU: bare model 29.7 (Q8) and 18.4 (Q4); harness v1 with 3 votes
-98.2 (Q8) and 71.1 (Q4).
+**Speed:** on the laptop CPU (i5-6300U) prompt reading runs at 6-8 tokens/s: 30-90 s per closed
+question and 5-14 min per essay. The exam runs on a GPU (`RUN_GPU.md`); model and harness are
+unchanged.
 
-On the laptop CPU a question takes 70-100 s (prompt reading runs at about 7.5 tokens/s), so the
-exam should run on a GPU; the model and harness are unchanged either way.
+### What each version changed, and why
 
-What v2 changed, after reading the v1 replies (the model often knew the facts but assembled them
-wrongly):
-
-- **order:** the model writes a year or century per letter and the code sorts them.
-- **matching:** each element is matched to the category whose text the model wrote next to it.
-- **multi:** one TAK/NIE verdict per option instead of a bare list of letters.
-- **tflist and order:** answer-format examples such as "np. P,F,P" are removed from the question,
-  because the small model copied them as its answer.
-- **numeric:** year differences are never negative.
-- **voting:** off by default. Across the whole v1 run it fixed one answer and broke another, while
-  doubling the time.
+- **v1 → v2** (the model knew the facts but assembled them wrongly): order questions: the model
+  writes a year per letter, code sorts. Matching: the element is mapped to the category text the
+  model wrote. Multi: one TAK/NIE per option. Format examples such as "np. P,F,P" are removed from
+  the question, because the model copied them. Voting off: it fixed one answer and broke another
+  while doubling the time.
+- **v2 → v3:** one line per item with a fact hint retrieved for each statement, option or element;
+  a time criterion in a multi question ("w XIX wieku") is checked in code against the years the
+  model wrote. Three CKE worked examples in every prompt made the prompt ~7000 characters long and
+  the 1.5B model lost track (order 4/4 → 1/4, held-out 4 → 2), so they are off.
+- **Essays and open answers:** own type, structured prompt, word count and extension in code,
+  markdown and invented references removed, justifications cut after the first sentence(s).
 
 ## CKE papers (v3, optional)
 
@@ -124,8 +149,8 @@ PROMPT_VERSION=v3 USE_CKE=1 python scripts/run_dev.py --mode harness --data data
 
 ```bash
 # 1. Model: download a GGUF above (LM Studio: search "Bielik-1.5B-v3.0-Instruct"),
-#    load it and start the server on port 1234. Or with curl:
-curl -L -o Bielik-1.5B-v3.0-Instruct.Q8_0.gguf https://huggingface.co/speakleash/Bielik-1.5B-v3.0-Instruct-GGUF/resolve/main/Bielik-1.5B-v3.0-Instruct.Q8_0.gguf
+#    load it as "bielik-1.5b-q4km" and start the server on port 1234. Or with curl:
+curl -L -o Bielik-1.5B-v3.0-Instruct-Q4_K_M.gguf https://huggingface.co/second-state/Bielik-1.5B-v3.0-Instruct-GGUF/resolve/main/Bielik-1.5B-v3.0-Instruct-Q4_K_M.gguf
 
 # 2. Knowledge base (needs internet once; Wikipedia rate-limits, allow 20-40 min):
 python scripts/build_kb.py
