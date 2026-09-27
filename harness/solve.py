@@ -1,4 +1,5 @@
 """The harness pipeline: parse -> retrieve -> prompt -> sample votes -> normalize -> vote."""
+import re
 import time
 from collections import Counter
 
@@ -78,6 +79,12 @@ def solve(text, declared_type=None, has_image=False, votes=None):
             break
 
     final = combine(q.qtype, answers) or _fallback(q)
+    # With nothing to go on (a picture it cannot see), the model copies the worked example
+    # ("Unia w Krewie" for a question about a Neolithic village). Ask again without the example.
+    if echoes_example(final, messages, q.text):
+        raw = llm.chat([messages[0], messages[-1]], temperature=0.0, max_tokens=prompts.max_tokens(q))
+        raws.append(raw)
+        final = normalize.normalize(q, raw) or final
     return {
         "answer": final,
         "type": q.qtype,
@@ -86,6 +93,26 @@ def solve(text, declared_type=None, has_image=False, votes=None):
         "passages": [p["title"] for p in passages],
         "seconds": round(time.time() - start, 1),
     }
+
+
+def _stems(text):
+    return {w[:6] for w in re.findall(r"[^\W\d_]{4,}", text.lower())}
+
+
+def echoes_example(answer, messages, question):
+    """True when most of the answer's words come from the worked example and not from the question."""
+    if len(messages) < 4 or not answer or len(answer) < 3:
+        return False
+    if messages[-2]["role"] != "assistant":
+        return False
+    # The whole worked example counts: the model also copies the example's question wording.
+    example = _stems(messages[-3]["content"]) | _stems(messages[-2]["content"])
+    first = re.split(r"(?<=[.!?])\s+", answer.strip(), maxsplit=1)[0]
+    for part in (answer, first):
+        words = _stems(part)
+        if words and len((words & example) - _stems(question)) >= max(1, len(words) / 2):
+            return True
+    return False
 
 
 def _fallback(q):

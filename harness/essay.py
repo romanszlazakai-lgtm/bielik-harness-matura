@@ -188,7 +188,9 @@ def solve_essay(q):
         else:
             draft = f"{draft}\n\n{addition}"
 
-    final = finalize(draft, topic if len(topics) > 1 else None)
+    # With several topics the answer must name the chosen one by its number.
+    label = f"nr {topics.index(topic) + 1}: {topic}" if len(topics) > 1 else None
+    final = finalize(draft, label)
     return {
         "answer": final,
         "type": "essay",

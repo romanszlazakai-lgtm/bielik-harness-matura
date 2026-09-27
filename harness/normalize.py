@@ -375,6 +375,9 @@ def open_answer(q, raw):
     """
     text = re.sub(r"^\s*Odpowied[zź]\s*:\s*", "", raw.strip(), flags=re.I)
     text = re.sub(r"\*\*|__", "", text)
+    # Chat preambles are not part of an exam answer ("Oto odpowiedź na Twoje pytanie:").
+    text = re.sub(r"^\s*(Oto (moja |twoja )?odpowied\w*[^:\n]*|Odpowiadając na (twoje )?pytanie[^:\n]*)[:.,]\s*",
+                  "", text, flags=re.I)
     verdict = re.search(r"Rozstrzygnięcie\s*:\s*(.+)", text, re.I)
     reason = re.search(r"Uzasadnienie\s*:\s*(.+?)(?=\n\s*Rozstrzygnięcie\s*:|\Z)", text, re.I | re.S)
     if verdict and reason:

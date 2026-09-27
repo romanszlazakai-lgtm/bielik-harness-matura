@@ -29,7 +29,8 @@ FORMAT = {
 # to every claim; the code puts the lines back in the marking scheme's order afterwards.
 DECISION_FORMAT = ("Odpowiedz dokładnie w dwóch liniach, w tej kolejności.\n"
                    "Uzasadnienie: <1-2 zdania z konkretnym faktem historycznym (data, postać, nazwa) i odwołaniem do źródła, jeśli jest>\n"
-                   "Rozstrzygnięcie: <Tak albo Nie, albo krótka nazwa>\n"
+                   "Rozstrzygnięcie: <jeśli polecenie podaje możliwości (np. 'paleolitu czy neolitu', 'A czy B', "
+                   "'który z fragmentów 1–3'), jedna z nich; w przeciwnym razie Tak albo Nie>\n"
                    "Sprawdź, czy fakty potwierdzają twierdzenie z polecenia; jeśli mu przeczą, rozstrzygnięcie brzmi Nie.")
 DECISION_EXAMPLE = (
     "Rozstrzygnij, czy unia w Krewie była unią realną. Odpowiedź uzasadnij.",
@@ -41,7 +42,8 @@ ESSAY_SYSTEM = ("Jesteś maturzystą, który pisze wypracowanie z historii na po
 ESSAY_INSTRUCTION = (
     "Napisz wypracowanie na ten temat, co najmniej {min_words} słów, według schematu. Każdą część zacznij od "
     "etykiety w osobnej linii i napisz jako pełny akapit (3-5 zdań):\n"
-    "Wstęp: teza, czyli jednoznaczne stanowisko wobec tematu, oraz ramy czasowe i przestrzenne.\n"
+    "Wstęp: teza, czyli jednoznaczne stanowisko wobec tematu zapisane zdaniem oznajmującym (nie pytaniem), "
+    "oraz ramy czasowe i przestrzenne.\n"
     "Argument 1: fakt historyczny (data, postać, wydarzenie), jego analiza i wniosek wspierający tezę.\n"
     "Argument 2: kolejny fakt z innej dziedziny (polityka, gospodarka i społeczeństwo, kultura), analiza i wniosek.\n"
     "Argument 3: kolejny fakt, analiza i wniosek.\n"

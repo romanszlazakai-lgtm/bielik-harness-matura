@@ -166,6 +166,28 @@ python scripts/run_dev.py --mode harness
 Settings are environment variables (see `harness/config.py`): `LLM_BASE_URL`, `LLM_MODEL`,
 `VOTES`, `REASONING`, `USE_RAG`, `TOP_K`, `DECIMAL_SEPARATOR`.
 
+## Final exam package
+
+The organisers ship `exam.json` + `images/` + `answers-template.json` (format
+`separate-text-and-images-v1`). `run_exam.py` answers every item and writes `answers.json`
+(`{"exam_id", "answers": [{"id", "answer"}]}`, all ids, strings, "" when there is no answer):
+
+```bash
+python run_exam.py --exam path/to/exam.json --out answers.json                  # harness
+python run_exam.py --exam path/to/exam.json --out base_answers.json --mode base # bare model
+```
+
+The item's `answer_format` picks the route: `A` single choice; `1: P / 2: F` true/false per
+statement; `1: A / 2: A` several single choices; `A: 1 / B: 1` a table of numbers; item 26 the
+essay (answer starts with the chosen topic's number); free text as a decision
+(`Rozstrzygnięcie:` / `Uzasadnienie:`), a short name, or an open answer. The sheet's empty answer
+fields are stripped from the task, and an answer that copies the worked example is asked again
+without it. Bielik 1.5B reads text only: images are marked, not seen.
+
+Mock package (May 2023 paper, 37 items) on the L40S: 48 s for the whole paper, 37/37 answered,
+essay 14 s. The bare model answers the same package with the exam instructions, sources, task and
+answer format only.
+
 ## On stage
 
 ```bash
